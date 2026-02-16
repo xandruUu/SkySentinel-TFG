@@ -13,17 +13,14 @@ services:
       - ./database_data:/var/lib/postgresql/data
 
   skysentinel_backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: skysentinel_api:latest
+    build: ./backend 
     container_name: skysentinel_api_container
     volumes:
       - ./backend:/app
     ports:
       - "8000:8000"
     working_dir: /app
-    command: sh -c "pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   skysentinel_frontend:
     image: node:20
