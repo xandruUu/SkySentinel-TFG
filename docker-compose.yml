@@ -1,0 +1,34 @@
+version: '3.8'
+services:
+  skysentinel_database:
+    image: postgis/postgis:16-3.4
+    container_name: skysentinel_db_container
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: 7yOLjbE0RSa9EJEA14
+      POSTGRES_DB: skysentinel_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./database_data:/var/lib/postgresql/data
+
+  skysentinel_backend:
+    image: python:3.13-slim
+    container_name: skysentinel_api_container
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    working_dir: /app
+    command: tail -f /dev/null
+
+  skysentinel_frontend:
+    image: node:20
+    container_name: skysentinel_ui_container
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    working_dir: /app
+    command: tail -f /dev/null
