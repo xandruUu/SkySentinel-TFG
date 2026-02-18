@@ -14,7 +14,11 @@ export default defineConfig({
   server: {
     host: true,             // Permite que el servidor sea accesible fuera del contenedor
     port: 5173,             // Asegura que use el puerto 5173 definido en tu docker-compose
-    allowedHosts: ['all'],  // ESTO CORRIGE EL ERROR: Permite el tráfico desde ngrok
+    allowedHosts: [
+  'phuong-hypertoxic-portia.ngrok-free.dev', 
+  '.ngrok-free.app', 
+  '.ngrok-free.dev'
+], // ESTO CORRIGE EL ERROR: Permite el tráfico desde ngrok
     watch: {
       usePolling: true,     // Recomendado para detectar cambios dentro de Docker en Windows
     },
