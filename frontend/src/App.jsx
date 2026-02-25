@@ -41,7 +41,6 @@ function AppMark() {
             strokeLinecap="round"
             opacity="0.95"
           />
-
           <circle cx="52" cy="24" r="3" fill="var(--color-solar)" />
 
           <path
@@ -51,13 +50,7 @@ function AppMark() {
             strokeLinecap="round"
             opacity="0.9"
           />
-          <path
-            d="M28 50h8"
-            stroke={`url(#${gradientId})`}
-            strokeWidth="2.6"
-            strokeLinecap="round"
-            opacity="0.55"
-          />
+          <path d="M28 50h8" stroke={`url(#${gradientId})`} strokeWidth="2.6" strokeLinecap="round" opacity="0.55" />
         </svg>
       </div>
     </div>
@@ -70,7 +63,7 @@ function ActionToast({ open, title, message, onAccept, acceptButtonRef }) {
   return (
     <div
       className={[
-        "absolute left-5 right-5 top-6 z-30 transition-all duration-300",
+        "fixed left-4 right-4 top-6 z-50 transition-all duration-300",
         open ? "opacity-100 translate-y-0" : "pointer-events-none opacity-0 -translate-y-4",
       ].join(" ")}
     >
@@ -79,7 +72,7 @@ function ActionToast({ open, title, message, onAccept, acceptButtonRef }) {
         aria-modal="true"
         aria-labelledby={`${id}-title`}
         aria-describedby={`${id}-message`}
-        className="rounded-3xl bg-ink/95 text-card shadow-[0_30px_90px_rgba(31,41,55,0.35)] ring-1 ring-solar/35 backdrop-blur-sm"
+        className="mx-auto max-w-xl rounded-3xl bg-ink/95 text-card shadow-[0_30px_90px_rgba(31,41,55,0.35)] ring-1 ring-solar/35 backdrop-blur-sm"
       >
         <div className="flex items-center justify-between gap-4 px-5 py-4">
           <div className="min-w-0 text-left">
@@ -105,7 +98,8 @@ function ActionToast({ open, title, message, onAccept, acceptButtonRef }) {
   );
 }
 
-function SlideToAct({ label, direction = "ltr", accent = "secondary", onComplete, resetToken, disabled = false }) {
+// ✅ quitado resetToken y el useEffect que hacía setState para reset
+function SlideToAct({ label, direction = "ltr", accent = "secondary", onComplete, disabled = false }) {
   const HANDLE_PX = 72;
   const trackRef = useRef(null);
 
@@ -136,12 +130,6 @@ function SlideToAct({ label, direction = "ltr", accent = "secondary", onComplete
     return () => ro.disconnect();
   }, []);
 
-  useEffect(() => {
-    setProgress(0);
-    setDragging(false);
-    setCompleted(false);
-  }, [resetToken]);
-
   const doneThreshold = 0.92;
 
   const finish = () => {
@@ -166,7 +154,6 @@ function SlideToAct({ label, direction = "ltr", accent = "secondary", onComplete
 
   const onPointerDown = (e) => {
     if (disabled || completed) return;
-
     e.preventDefault();
     setDragging(true);
     e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -182,11 +169,8 @@ function SlideToAct({ label, direction = "ltr", accent = "secondary", onComplete
 
     setDragging(false);
 
-    if (progress >= doneThreshold) {
-      finish();
-    } else {
-      setProgress(0);
-    }
+    if (progress >= doneThreshold) finish();
+    else setProgress(0);
 
     try {
       e.currentTarget.releasePointerCapture?.(e.pointerId);
@@ -336,83 +320,47 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-surface px-4 py-10 text-ink">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-3xl items-center justify-center">
-        <div className="relative w-full max-w-[460px]">
-          <div className="relative mx-auto aspect-[390/844] w-full max-w-[430px]">
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 rounded-[72px] bg-[linear-gradient(180deg,color-mix(in_oklab,var(--color-primary)_18%,transparent),color-mix(in_oklab,var(--color-primary)_6%,transparent))] shadow-[0_50px_140px_rgba(30,58,138,0.25)]"
-            />
-            <div aria-hidden="true" className="absolute inset-[10px] rounded-[62px] bg-card ring-1 ring-primary/10" />
+    <div className="relative min-h-screen bg-surface text-ink">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,color-mix(in_oklab,var(--color-secondary)_20%,transparent),transparent_55%),radial-gradient(circle_at_50%_78%,color-mix(in_oklab,var(--color-radar)_14%,transparent),transparent_62%)]"
+      />
 
-            <div className="relative h-full w-full rounded-[65px] p-3">
-              <div className="relative h-full w-full overflow-hidden rounded-[52px] bg-surface ring-1 ring-primary/10">
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,color-mix(in_oklab,var(--color-secondary)_20%,transparent),transparent_55%),radial-gradient(circle_at_50%_70%,color-mix(in_oklab,var(--color-radar)_14%,transparent),transparent_62%)]"
-                />
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-0 opacity-60 bg-[linear-gradient(135deg,color-mix(in_oklab,var(--color-primary)_10%,transparent)_0%,transparent_42%,color-mix(in_oklab,var(--color-radar)_8%,transparent)_100%)]"
-                />
+      {isToastOpen ? <div aria-hidden="true" className="fixed inset-0 z-40 bg-ink/20 backdrop-blur-[2px]" /> : null}
 
-                <div
-                  aria-hidden="true"
-                  className="absolute left-1/2 top-0 h-8 w-44 -translate-x-1/2 rounded-b-[26px] bg-ink/5"
-                />
+      <ActionToast
+        open={isToastOpen}
+        title={toast?.title ?? ""}
+        message={toast?.message ?? ""}
+        onAccept={closeToast}
+        acceptButtonRef={acceptButtonRef}
+      />
 
-                {isToastOpen ? (
-                  <>
-                    <div aria-hidden="true" className="absolute inset-0 z-20 bg-ink/20 backdrop-blur-[2px]" />
-                    <ActionToast
-                      open={isToastOpen}
-                      title={toast?.title ?? ""}
-                      message={toast?.message ?? ""}
-                      onAccept={closeToast}
-                      acceptButtonRef={acceptButtonRef}
-                    />
-                  </>
-                ) : null}
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-6 py-16 text-center">
+        <AppMark />
 
-                <div className="relative z-10 flex h-full flex-col items-center px-8 pb-20 pt-20 text-center">
-                  <AppMark />
+        <h1 className="mt-7 text-5xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-secondary to-radar drop-shadow-[0_20px_55px_rgba(30,58,138,0.12)]">
+          Skysentinel
+        </h1>
+        <p className="mt-3 text-base text-muted">Your Personal Flight Radar</p>
 
-                  <h1 className="mt-7 text-5xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-secondary to-radar drop-shadow-[0_20px_55px_rgba(30,58,138,0.12)]">
-                    Skysentinel
-                  </h1>
-                  <p className="mt-3 text-base text-muted">Your Personal Flight Radar</p>
-
-                  <div className="flex-1" />
-
-                  <div className="w-full max-w-[360px] space-y-5">
-                    <SlideToAct
-                      label="Desliza para Iniciar Sesión"
-                      direction="ltr"
-                      accent="secondary"
-                      onComplete={openLoginToast}
-                      resetToken={resetToken}
-                      disabled={isToastOpen}
-                    />
-                    <SlideToAct
-                      label="Desliza para Registrarse"
-                      direction="rtl"
-                      accent="radar"
-                      onComplete={openRegisterToast}
-                      resetToken={resetToken}
-                      disabled={isToastOpen}
-                    />
-                  </div>
-                </div>
-
-                <div aria-hidden="true" className="absolute bottom-5 left-1/2 z-10 h-1.5 w-32 -translate-x-1/2 rounded-full bg-ink/20" />
-              </div>
-            </div>
-          </div>
-
-          <p className="mt-6 text-center text-xs text-muted">
-            SkySentinel · Demo UI (slide actions) · Paleta aeronáutica
-          </p>
+        <div className="mt-14 w-full max-w-[420px] space-y-5">
+          <SlideToAct
+            key={`login-${resetToken}`}   // ✅ fuerza remount para reset
+            label="Desliza para Iniciar Sesión"
+            direction="ltr"
+            accent="secondary"
+            onComplete={openLoginToast}
+            disabled={isToastOpen}
+          />
+          <SlideToAct
+            key={`register-${resetToken}`} // ✅ fuerza remount para reset
+            label="Desliza para Registrarse"
+            direction="rtl"
+            accent="radar"
+            onComplete={openRegisterToast}
+            disabled={isToastOpen}
+          />
         </div>
       </div>
     </div>
