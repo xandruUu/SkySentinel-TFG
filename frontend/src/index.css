@@ -1,1 +1,30 @@
 @import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@theme {
+  /* UI palette (SkySentinel) */
+  --color-surface: #FFFFFF;   /* Fondo principal */
+  --color-card: #F4F7FB;      /* Fondo tarjetas */
+  --color-primary: #1E3A8A;   /* Azul primario (aeronáutico) */
+  --color-secondary: #2563EB; /* Azul secundario (cielo) */
+  --color-solar: #FFC83D;     /* Amarillo solar (indicadores activos) */
+  --color-radar: #FF7A00;     /* Naranja radar (CTA principal) */
+  --color-ink: #1F2937;       /* Texto principal (gris carbón) */
+  --color-muted: #6B7280;     /* Texto secundario (gris medio) */
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+  }
+
+  /* Better mobile feel for the "slide" interaction */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
