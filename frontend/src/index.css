@@ -13,12 +13,25 @@
 }
 
 @layer base {
-  :root { color-scheme: light; }
+  :root {
+    color-scheme: light;
+  }
+
+  /* 🔑 Clave para PWA + iOS: asegurar alturas completas */
+  html,
+  body,
+  #root {
+    height: 100%;
+    min-height: 100dvh;
+  }
 
   body {
+    margin: 0;
     background-color: var(--color-surface);
     color: var(--color-ink);
   }
 
-  * { -webkit-tap-highlight-color: transparent; }
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
 }

@@ -34,13 +34,7 @@ function AppMark() {
           <circle cx="32" cy="32" r="14" stroke={`url(#${gradientId})`} strokeWidth="2.3" opacity="0.7" />
           <circle cx="32" cy="32" r="6" stroke={`url(#${gradientId})`} strokeWidth="2.3" opacity="0.5" />
 
-          <path
-            d="M32 32 L52 24"
-            stroke={`url(#${gradientId})`}
-            strokeWidth="2.6"
-            strokeLinecap="round"
-            opacity="0.95"
-          />
+          <path d="M32 32 L52 24" stroke={`url(#${gradientId})`} strokeWidth="2.6" strokeLinecap="round" opacity="0.95" />
           <circle cx="52" cy="24" r="3" fill="var(--color-solar)" />
 
           <path
@@ -63,7 +57,7 @@ function ActionToast({ open, title, message, onAccept, acceptButtonRef }) {
   return (
     <div
       className={[
-        "fixed left-4 right-4 top-6 z-50 transition-all duration-300",
+        "fixed left-4 right-4 top-[calc(env(safe-area-inset-top)+16px)] z-50 transition-all duration-300",
         open ? "opacity-100 translate-y-0" : "pointer-events-none opacity-0 -translate-y-4",
       ].join(" ")}
     >
@@ -98,7 +92,6 @@ function ActionToast({ open, title, message, onAccept, acceptButtonRef }) {
   );
 }
 
-// ✅ quitado resetToken y el useEffect que hacía setState para reset
 function SlideToAct({ label, direction = "ltr", accent = "secondary", onComplete, disabled = false }) {
   const HANDLE_PX = 72;
   const trackRef = useRef(null);
@@ -320,12 +313,17 @@ export default function App() {
   };
 
   return (
-    <div className="relative min-h-screen bg-surface text-ink">
+    <div
+      className="relative min-h-[100dvh] bg-surface text-ink"
+      style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      {/* Background glow full screen */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,color-mix(in_oklab,var(--color-secondary)_20%,transparent),transparent_55%),radial-gradient(circle_at_50%_78%,color-mix(in_oklab,var(--color-radar)_14%,transparent),transparent_62%)]"
       />
 
+      {/* Toast overlay */}
       {isToastOpen ? <div aria-hidden="true" className="fixed inset-0 z-40 bg-ink/20 backdrop-blur-[2px]" /> : null}
 
       <ActionToast
@@ -336,7 +334,8 @@ export default function App() {
         acceptButtonRef={acceptButtonRef}
       />
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-6 py-16 text-center">
+      {/* Content */}
+      <div className="relative z-10 mx-auto flex min-h-[100dvh] max-w-2xl flex-col items-center justify-center px-6 py-16 text-center">
         <AppMark />
 
         <h1 className="mt-7 text-5xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-secondary to-radar drop-shadow-[0_20px_55px_rgba(30,58,138,0.12)]">
@@ -346,7 +345,7 @@ export default function App() {
 
         <div className="mt-14 w-full max-w-[420px] space-y-5">
           <SlideToAct
-            key={`login-${resetToken}`}   // ✅ fuerza remount para reset
+            key={`login-${resetToken}`}
             label="Desliza para Iniciar Sesión"
             direction="ltr"
             accent="secondary"
@@ -354,7 +353,7 @@ export default function App() {
             disabled={isToastOpen}
           />
           <SlideToAct
-            key={`register-${resetToken}`} // ✅ fuerza remount para reset
+            key={`register-${resetToken}`}
             label="Desliza para Registrarse"
             direction="rtl"
             accent="radar"
