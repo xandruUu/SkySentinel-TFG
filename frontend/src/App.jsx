@@ -4,19 +4,19 @@ function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
 }
 
-function AppMark() {
+function AppMark({ size = 96 }) {
   const gradientId = useId();
 
   return (
-    <div className="relative">
+    <div className="relative" style={{ width: size, height: size }}>
       <div
         aria-hidden="true"
         className="absolute -inset-6 rounded-[28px] bg-[radial-gradient(circle_at_50%_35%,color-mix(in_oklab,var(--color-secondary)_30%,transparent),transparent_70%)] blur-2xl"
       />
-      <div className="relative grid h-24 w-24 place-items-center rounded-[28px] bg-card ring-1 ring-primary/15 shadow-[0_20px_50px_rgba(30,58,138,0.18)]">
+      <div className="relative grid h-full w-full place-items-center rounded-[28px] bg-card ring-1 ring-primary/15 shadow-[0_20px_50px_rgba(30,58,138,0.18)]">
         <svg
-          width="54"
-          height="54"
+          width={Math.round(size * 0.56)}
+          height={Math.round(size * 0.56)}
           viewBox="0 0 64 64"
           fill="none"
           className="drop-shadow-[0_10px_25px_rgba(37,99,235,0.22)]"
@@ -280,9 +280,332 @@ function SlideToAct({ label, direction = "ltr", accent = "secondary", onComplete
   );
 }
 
+/* ---------- UI building blocks (no libs) ---------- */
+
+function ScreenShell({ children }) {
+  return (
+    <div
+      className="relative min-h-[100dvh] bg-surface text-ink"
+      style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,color-mix(in_oklab,var(--color-secondary)_20%,transparent),transparent_55%),radial-gradient(circle_at_50%_78%,color-mix(in_oklab,var(--color-radar)_14%,transparent),transparent_62%)]"
+      />
+      <div className="relative z-10">{children}</div>
+    </div>
+  );
+}
+
+function Card({ children }) {
+  return (
+    <div className="w-full rounded-[32px] bg-card/95 ring-1 ring-primary/10 shadow-[0_25px_70px_rgba(30,58,138,0.12)] backdrop-blur-sm">
+      {children}
+    </div>
+  );
+}
+
+function TextInput({ label, type = "text", value, onChange, placeholder, autoComplete }) {
+  const id = useId();
+  return (
+    <div className="text-left">
+      <label htmlFor={id} className="block text-sm font-semibold text-ink">
+        {label}
+      </label>
+      <div className="mt-2">
+        <input
+          id={id}
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          className="w-full rounded-2xl bg-white/80 px-4 py-3 text-[15px] text-ink ring-1 ring-primary/10 shadow-[0_12px_30px_rgba(30,58,138,0.08)] outline-none transition focus:ring-4 focus:ring-secondary/20"
+        />
+      </div>
+    </div>
+  );
+}
+
+function PrimaryButton({ children, variant = "radar", onClick, type = "button", disabled }) {
+  const styles =
+    variant === "secondary"
+      ? "bg-secondary text-white shadow-[0_14px_40px_rgba(37,99,235,0.28)]"
+      : "bg-radar text-white shadow-[0_14px_40px_rgba(255,122,0,0.28)]";
+
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={[
+        "w-full rounded-2xl px-5 py-3.5 text-[15px] font-semibold",
+        styles,
+        "ring-2 ring-white/30 transition-transform duration-200 hover:scale-[1.01] active:scale-[0.99]",
+        "focus:outline-none focus-visible:ring-4 focus-visible:ring-secondary/30",
+        disabled ? "opacity-60 cursor-not-allowed" : "",
+      ].join(" ")}
+    >
+      {children}
+    </button>
+  );
+}
+
+function GhostButton({ children, onClick, type = "button" }) {
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      className="w-full rounded-2xl bg-white/40 px-5 py-3.5 text-[15px] font-semibold text-ink ring-1 ring-primary/10 shadow-[0_12px_30px_rgba(30,58,138,0.06)] transition hover:bg-white/55 focus:outline-none focus-visible:ring-4 focus-visible:ring-secondary/20"
+    >
+      {children}
+    </button>
+  );
+}
+
+function HeaderBar({ title, onBack }) {
+  return (
+    <div className="mx-auto w-full max-w-2xl px-6 pt-6">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={onBack}
+          className="rounded-2xl bg-white/45 px-4 py-2 text-sm font-semibold text-ink ring-1 ring-primary/10 shadow-[0_12px_30px_rgba(30,58,138,0.06)] transition hover:bg-white/60 focus:outline-none focus-visible:ring-4 focus-visible:ring-secondary/20"
+        >
+          ← Volver
+        </button>
+
+        <div className="text-right">
+          <p className="text-sm font-semibold text-ink">{title}</p>
+          <p className="text-xs text-muted">SkySentinel</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Screens ---------- */
+
+function LandingScreen({ onGoLogin, onGoRegister, sliderResetKey, disabled }) {
+  return (
+    <div className="mx-auto flex min-h-[100dvh] max-w-2xl flex-col items-center justify-center px-6 py-16 text-center">
+      <AppMark />
+
+      <h1 className="mt-7 text-5xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-secondary to-radar drop-shadow-[0_20px_55px_rgba(30,58,138,0.12)]">
+        Skysentinel
+      </h1>
+      <p className="mt-3 text-base text-muted">Your Personal Flight Radar</p>
+
+      <div className="mt-14 w-full max-w-[420px] space-y-5">
+        <SlideToAct
+          key={`login-${sliderResetKey}`}
+          label="Desliza para Iniciar Sesión"
+          direction="ltr"
+          accent="secondary"
+          onComplete={onGoLogin}
+          disabled={disabled}
+        />
+        <SlideToAct
+          key={`register-${sliderResetKey}`}
+          label="Desliza para Registrarse"
+          direction="rtl"
+          accent="radar"
+          onComplete={onGoRegister}
+          disabled={disabled}
+        />
+      </div>
+
+      <p className="mt-10 text-xs text-muted">PWA · iOS/Android/Desktop</p>
+    </div>
+  );
+}
+
+function LoginScreen({ onBack, onSubmit, onGoRegister, loading }) {
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
+
+  const canSubmit = email.trim().length > 3 && pass.trim().length >= 4;
+
+  return (
+    <>
+      <HeaderBar title="Iniciar sesión" onBack={onBack} />
+
+      <div className="mx-auto w-full max-w-2xl px-6 pb-16 pt-10">
+        <div className="mx-auto w-full max-w-[520px]">
+          <div className="flex justify-center">
+            <AppMark size={80} />
+          </div>
+
+          <h2 className="mt-8 text-center text-3xl font-black tracking-tight text-ink">
+            Bienvenido de nuevo
+          </h2>
+          <p className="mt-2 text-center text-sm text-muted">
+            Accede a tu perfil de spotter y tus seguimientos.
+          </p>
+
+          <div className="mt-10">
+            <Card>
+              <div className="p-6 sm:p-8">
+                <div className="space-y-5">
+                  <TextInput
+                    label="Email"
+                    type="email"
+                    value={email}
+                    onChange={setEmail}
+                    placeholder="tu@email.com"
+                    autoComplete="email"
+                  />
+                  <TextInput
+                    label="Contraseña"
+                    type="password"
+                    value={pass}
+                    onChange={setPass}
+                    placeholder="••••••••"
+                    autoComplete="current-password"
+                  />
+
+                  <PrimaryButton
+                    variant="secondary"
+                    disabled={!canSubmit || loading}
+                    onClick={() => onSubmit({ email, pass })}
+                  >
+                    {loading ? "Entrando..." : "Entrar"}
+                  </PrimaryButton>
+
+                  <div className="text-center text-sm text-muted">
+                    ¿No tienes cuenta?{" "}
+                    <button
+                      type="button"
+                      onClick={onGoRegister}
+                      className="font-semibold text-secondary underline underline-offset-4 decoration-secondary/40"
+                    >
+                      Crear cuenta
+                    </button>
+                  </div>
+
+                  <GhostButton onClick={onBack}>Volver al inicio</GhostButton>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function RegisterScreen({ onBack, onSubmit, onGoLogin, loading }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const [pass2, setPass2] = useState("");
+
+  const passOk = pass.trim().length >= 6;
+  const match = pass === pass2 && pass2.length > 0;
+  const canSubmit = name.trim().length >= 2 && email.trim().length > 3 && passOk && match;
+
+  return (
+    <>
+      <HeaderBar title="Registro" onBack={onBack} />
+
+      <div className="mx-auto w-full max-w-2xl px-6 pb-16 pt-10">
+        <div className="mx-auto w-full max-w-[520px]">
+          <div className="flex justify-center">
+            <AppMark size={80} />
+          </div>
+
+          <h2 className="mt-8 text-center text-3xl font-black tracking-tight text-ink">
+            Crea tu cuenta
+          </h2>
+          <p className="mt-2 text-center text-sm text-muted">
+            Guarda avistamientos, alertas y aeronaves favoritas.
+          </p>
+
+          <div className="mt-10">
+            <Card>
+              <div className="p-6 sm:p-8">
+                <div className="space-y-5">
+                  <TextInput
+                    label="Nombre"
+                    value={name}
+                    onChange={setName}
+                    placeholder="Xandru"
+                    autoComplete="name"
+                  />
+                  <TextInput
+                    label="Email"
+                    type="email"
+                    value={email}
+                    onChange={setEmail}
+                    placeholder="tu@email.com"
+                    autoComplete="email"
+                  />
+
+                  <TextInput
+                    label="Contraseña"
+                    type="password"
+                    value={pass}
+                    onChange={setPass}
+                    placeholder="Mínimo 6 caracteres"
+                    autoComplete="new-password"
+                  />
+                  <TextInput
+                    label="Repetir contraseña"
+                    type="password"
+                    value={pass2}
+                    onChange={setPass2}
+                    placeholder="Repite la contraseña"
+                    autoComplete="new-password"
+                  />
+
+                  <div className="rounded-2xl bg-white/55 p-4 ring-1 ring-primary/10">
+                    <p className="text-sm font-semibold text-ink">Requisitos</p>
+                    <ul className="mt-2 space-y-1 text-sm text-muted">
+                      <li className={passOk ? "text-ink" : ""}>• Contraseña ≥ 6 caracteres</li>
+                      <li className={match ? "text-ink" : ""}>• Las contraseñas coinciden</li>
+                    </ul>
+                  </div>
+
+                  <PrimaryButton
+                    variant="radar"
+                    disabled={!canSubmit || loading}
+                    onClick={() => onSubmit({ name, email, pass })}
+                  >
+                    {loading ? "Creando..." : "Crear cuenta"}
+                  </PrimaryButton>
+
+                  <div className="text-center text-sm text-muted">
+                    ¿Ya tienes cuenta?{" "}
+                    <button
+                      type="button"
+                      onClick={onGoLogin}
+                      className="font-semibold text-secondary underline underline-offset-4 decoration-secondary/40"
+                    >
+                      Iniciar sesión
+                    </button>
+                  </div>
+
+                  <GhostButton onClick={onBack}>Volver al inicio</GhostButton>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ---------- App (router simple por estado) ---------- */
+
 export default function App() {
+  // screen: "landing" | "login" | "register"
+  const [screen, setScreen] = useState("landing");
+
   const [toast, setToast] = useState(null);
-  const [resetToken, setResetToken] = useState(0);
+  const [sliderResetKey, setSliderResetKey] = useState(0);
+
+  const [loading, setLoading] = useState(false);
   const acceptButtonRef = useRef(null);
 
   const isToastOpen = Boolean(toast);
@@ -293,37 +616,29 @@ export default function App() {
     return () => window.clearTimeout(t);
   }, [isToastOpen]);
 
-  const openLoginToast = () =>
-    setToast({
-      kind: "login",
-      title: "Iniciar sesión",
-      message: "Iniciando sesión...",
-    });
-
-  const openRegisterToast = () =>
-    setToast({
-      kind: "register",
-      title: "Registro",
-      message: "Abriendo registro...",
-    });
-
   const closeToast = () => {
     setToast(null);
-    setResetToken((t) => t + 1);
+    setSliderResetKey((k) => k + 1);
+    setLoading(false);
+  };
+
+  // Navegación desde sliders (no toast aquí: navega directo)
+  const goLogin = () => setScreen("login");
+  const goRegister = () => setScreen("register");
+
+  // Submit handlers (demo). Aquí luego conectas tu API.
+  const submitLogin = ({ email }) => {
+    setLoading(true);
+    setToast({ title: "Iniciar sesión", message: `Validando credenciales para ${email}...` });
+  };
+
+  const submitRegister = ({ email }) => {
+    setLoading(true);
+    setToast({ title: "Registro", message: `Creando cuenta para ${email}...` });
   };
 
   return (
-    <div
-      className="relative min-h-[100dvh] bg-surface text-ink"
-      style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
-    >
-      {/* Background glow full screen */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_18%,color-mix(in_oklab,var(--color-secondary)_20%,transparent),transparent_55%),radial-gradient(circle_at_50%_78%,color-mix(in_oklab,var(--color-radar)_14%,transparent),transparent_62%)]"
-      />
-
-      {/* Toast overlay */}
+    <ScreenShell>
       {isToastOpen ? <div aria-hidden="true" className="fixed inset-0 z-40 bg-ink/20 backdrop-blur-[2px]" /> : null}
 
       <ActionToast
@@ -334,34 +649,35 @@ export default function App() {
         acceptButtonRef={acceptButtonRef}
       />
 
-      {/* Content */}
-      <div className="relative z-10 mx-auto flex min-h-[100dvh] max-w-2xl flex-col items-center justify-center px-6 py-16 text-center">
-        <AppMark />
-
-        <h1 className="mt-7 text-5xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-secondary to-radar drop-shadow-[0_20px_55px_rgba(30,58,138,0.12)]">
-          Skysentinel
-        </h1>
-        <p className="mt-3 text-base text-muted">Your Personal Flight Radar</p>
-
-        <div className="mt-14 w-full max-w-[420px] space-y-5">
-          <SlideToAct
-            key={`login-${resetToken}`}
-            label="Desliza para Iniciar Sesión"
-            direction="ltr"
-            accent="secondary"
-            onComplete={openLoginToast}
+      <div
+        className={[
+          "transition-opacity duration-300",
+          isToastOpen ? "pointer-events-none opacity-90" : "opacity-100",
+        ].join(" ")}
+      >
+        {screen === "landing" ? (
+          <LandingScreen
+            onGoLogin={goLogin}
+            onGoRegister={goRegister}
+            sliderResetKey={sliderResetKey}
             disabled={isToastOpen}
           />
-          <SlideToAct
-            key={`register-${resetToken}`}
-            label="Desliza para Registrarse"
-            direction="rtl"
-            accent="radar"
-            onComplete={openRegisterToast}
-            disabled={isToastOpen}
+        ) : screen === "login" ? (
+          <LoginScreen
+            onBack={() => setScreen("landing")}
+            onSubmit={submitLogin}
+            onGoRegister={() => setScreen("register")}
+            loading={loading}
           />
-        </div>
+        ) : (
+          <RegisterScreen
+            onBack={() => setScreen("landing")}
+            onSubmit={submitRegister}
+            onGoLogin={() => setScreen("login")}
+            loading={loading}
+          />
+        )}
       </div>
-    </div>
+    </ScreenShell>
   );
 }
