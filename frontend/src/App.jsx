@@ -1,51 +1,37 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
+function isIosDevice() {
+  if (typeof window === "undefined") return false;
+  return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+}
+
+function isStandaloneMode() {
+  if (typeof window === "undefined") return false;
+
+  const byDisplayMode = window.matchMedia?.("(display-mode: standalone)")?.matches ?? false;
+  const byNavigator = window.navigator.standalone === true;
+
+  return byDisplayMode || byNavigator;
+}
+
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
 }
 
 function AppMark({ size = 96 }) {
-  const gradientId = useId();
-
   return (
     <div className="relative" style={{ width: size, height: size }}>
       <div
         aria-hidden="true"
         className="absolute -inset-6 rounded-[28px] bg-[radial-gradient(circle_at_50%_35%,color-mix(in_oklab,var(--color-secondary)_30%,transparent),transparent_70%)] blur-2xl"
       />
-      <div className="relative grid h-full w-full place-items-center rounded-[28px] bg-card ring-1 ring-primary/15 shadow-[0_20px_50px_rgba(30,58,138,0.18)]">
-        <svg
-          width={Math.round(size * 0.56)}
-          height={Math.round(size * 0.56)}
-          viewBox="0 0 64 64"
-          fill="none"
-          className="drop-shadow-[0_10px_25px_rgba(37,99,235,0.22)]"
-          role="img"
-          aria-label="SkySentinel mark"
-        >
-          <defs>
-            <linearGradient id={gradientId} x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-              <stop stopColor="var(--color-secondary)" />
-              <stop offset="1" stopColor="var(--color-radar)" />
-            </linearGradient>
-          </defs>
-
-          <circle cx="32" cy="32" r="22" stroke={`url(#${gradientId})`} strokeWidth="2.3" opacity="0.95" />
-          <circle cx="32" cy="32" r="14" stroke={`url(#${gradientId})`} strokeWidth="2.3" opacity="0.7" />
-          <circle cx="32" cy="32" r="6" stroke={`url(#${gradientId})`} strokeWidth="2.3" opacity="0.5" />
-
-          <path d="M32 32 L52 24" stroke={`url(#${gradientId})`} strokeWidth="2.6" strokeLinecap="round" opacity="0.95" />
-          <circle cx="52" cy="24" r="3" fill="var(--color-solar)" />
-
-          <path
-            d="M20 48c4-6 10-10 18-10 4.5 0 8.5 1 12 3"
-            stroke={`url(#${gradientId})`}
-            strokeWidth="2.6"
-            strokeLinecap="round"
-            opacity="0.9"
-          />
-          <path d="M28 50h8" stroke={`url(#${gradientId})`} strokeWidth="2.6" strokeLinecap="round" opacity="0.55" />
-        </svg>
+      <div className="relative grid h-full w-full place-items-center rounded-[28px] bg-card ring-1 ring-primary/15 shadow-[0_20px_50px_rgba(30,58,138,0.18)] p-3">
+        <img
+          src="/logo1.svg"
+          alt="Logo de SkySentinel"
+          className="h-full w-full object-contain drop-shadow-[0_10px_25px_rgba(37,99,235,0.22)]"
+          draggable="false"
+        />
       </div>
     </div>
   );
@@ -92,7 +78,13 @@ function ActionToast({ open, title, message, onAccept, acceptButtonRef }) {
   );
 }
 
-function SlideToAct({ label, direction = "ltr", accent = "secondary", onComplete, disabled = false }) {
+function SlideToAct({
+  label,
+  direction = "ltr",
+  accent = "secondary",
+  onComplete,
+  disabled = false,
+}) {
   const HANDLE_PX = 72;
   const trackRef = useRef(null);
 
@@ -116,6 +108,11 @@ function SlideToAct({ label, direction = "ltr", accent = "secondary", onComplete
 
     const measure = () => setTrackWidth(el.getBoundingClientRect().width);
     measure();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
 
     const ro = new ResizeObserver(() => measure());
     ro.observe(el);
@@ -269,7 +266,10 @@ function SlideToAct({ label, direction = "ltr", accent = "secondary", onComplete
           ].join(" ")}
           style={{ transform: `translate(${handleLeft}px, -50%)` }}
         >
-          <span aria-hidden="true" className="text-2xl leading-none drop-shadow-[0_10px_20px_rgba(0,0,0,0.25)]">
+          <span
+            aria-hidden="true"
+            className="text-2xl leading-none drop-shadow-[0_10px_20px_rgba(0,0,0,0.25)]"
+          >
             {icon}
           </span>
         </button>
@@ -279,8 +279,6 @@ function SlideToAct({ label, direction = "ltr", accent = "secondary", onComplete
     </div>
   );
 }
-
-/* ---------- UI building blocks (no libs) ---------- */
 
 function ScreenShell({ children }) {
   return (
@@ -307,6 +305,7 @@ function Card({ children }) {
 
 function TextInput({ label, type = "text", value, onChange, placeholder, autoComplete }) {
   const id = useId();
+
   return (
     <div className="text-left">
       <label htmlFor={id} className="block text-sm font-semibold text-ink">
@@ -343,7 +342,7 @@ function PrimaryButton({ children, variant = "radar", onClick, type = "button", 
         styles,
         "ring-2 ring-white/30 transition-transform duration-200 hover:scale-[1.01] active:scale-[0.99]",
         "focus:outline-none focus-visible:ring-4 focus-visible:ring-secondary/30",
-        disabled ? "opacity-60 cursor-not-allowed" : "",
+        disabled ? "cursor-not-allowed opacity-60" : "",
       ].join(" ")}
     >
       {children}
@@ -384,15 +383,13 @@ function HeaderBar({ title, onBack }) {
   );
 }
 
-/* ---------- Screens ---------- */
-
 function LandingScreen({ onGoLogin, onGoRegister, sliderResetKey, disabled }) {
   return (
     <div className="mx-auto flex min-h-[100dvh] max-w-2xl flex-col items-center justify-center px-6 py-16 text-center">
       <AppMark />
 
-      <h1 className="mt-7 text-5xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-secondary to-radar drop-shadow-[0_20px_55px_rgba(30,58,138,0.12)]">
-        Skysentinel
+      <h1 className="mt-7 bg-gradient-to-r from-secondary to-radar bg-clip-text text-5xl font-black tracking-tight text-transparent drop-shadow-[0_20px_55px_rgba(30,58,138,0.12)]">
+        SkySentinel
       </h1>
       <p className="mt-3 text-base text-muted">Your Personal Flight Radar</p>
 
@@ -477,7 +474,7 @@ function LoginScreen({ onBack, onSubmit, onGoRegister, loading }) {
                     <button
                       type="button"
                       onClick={onGoRegister}
-                      className="font-semibold text-secondary underline underline-offset-4 decoration-secondary/40"
+                      className="font-semibold text-secondary underline decoration-secondary/40 underline-offset-4"
                     >
                       Crear cuenta
                     </button>
@@ -540,7 +537,6 @@ function RegisterScreen({ onBack, onSubmit, onGoLogin, loading }) {
                     placeholder="tu@email.com"
                     autoComplete="email"
                   />
-
                   <TextInput
                     label="Contraseña"
                     type="password"
@@ -579,7 +575,7 @@ function RegisterScreen({ onBack, onSubmit, onGoLogin, loading }) {
                     <button
                       type="button"
                       onClick={onGoLogin}
-                      className="font-semibold text-secondary underline underline-offset-4 decoration-secondary/40"
+                      className="font-semibold text-secondary underline decoration-secondary/40 underline-offset-4"
                     >
                       Iniciar sesión
                     </button>
@@ -596,25 +592,161 @@ function RegisterScreen({ onBack, onSubmit, onGoLogin, loading }) {
   );
 }
 
-/* ---------- App (router simple por estado) ---------- */
+function InstallBanner({ installState, onInstall, onClose }) {
+  const { canInstall, isIOS, isInstalled, showFallback } = installState;
+
+  if (isInstalled) return null;
+
+  if (canInstall) {
+    return (
+      <div className="fixed bottom-4 left-4 right-4 z-[60]">
+        <div className="mx-auto max-w-xl rounded-3xl bg-ink/95 p-4 text-card shadow-[0_30px_90px_rgba(31,41,55,0.35)] ring-1 ring-secondary/30 backdrop-blur-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div className="text-left">
+              <p className="text-sm font-semibold">Instala SkySentinel</p>
+              <p className="mt-1 text-sm text-card/75">
+                Añádela a tu pantalla de inicio y úsala como una app.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full px-3 py-1 text-sm text-card/70 transition hover:bg-white/10"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={onInstall}
+              className="rounded-2xl bg-secondary px-4 py-3 text-sm font-semibold text-white shadow-[0_14px_40px_rgba(37,99,235,0.28)] ring-2 ring-white/20 transition-transform duration-200 hover:scale-[1.01] active:scale-[0.99]"
+            >
+              Instalar app
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isIOS) {
+    return (
+      <div className="fixed bottom-4 left-4 right-4 z-[60]">
+        <div className="mx-auto max-w-xl rounded-3xl bg-ink/95 p-4 text-card shadow-[0_30px_90px_rgba(31,41,55,0.35)] ring-1 ring-solar/30 backdrop-blur-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div className="text-left">
+              <p className="text-sm font-semibold">Añadir a pantalla de inicio</p>
+              <p className="mt-1 text-sm text-card/75">
+                En iPhone o iPad pulsa <span className="font-semibold">Compartir</span> y después{" "}
+                <span className="font-semibold">Añadir a pantalla de inicio</span>.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full px-3 py-1 text-sm text-card/70 transition hover:bg-white/10"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (showFallback) {
+    return (
+      <div className="fixed bottom-4 left-4 right-4 z-[60]">
+        <div className="mx-auto max-w-xl rounded-3xl bg-ink/95 p-4 text-card shadow-[0_30px_90px_rgba(31,41,55,0.35)] ring-1 ring-radar/30 backdrop-blur-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div className="text-left">
+              <p className="text-sm font-semibold">Guardar como app</p>
+              <p className="mt-1 text-sm text-card/75">
+                Abre el menú del navegador y busca una opción como <span className="font-semibold">Instalar app</span>,{" "}
+                <span className="font-semibold">Añadir a pantalla de inicio</span> o{" "}
+                <span className="font-semibold">Crear acceso directo</span>.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full px-3 py-1 text-sm text-card/70 transition hover:bg-white/10"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
 
 export default function App() {
-  // screen: "landing" | "login" | "register"
   const [screen, setScreen] = useState("landing");
-
   const [toast, setToast] = useState(null);
   const [sliderResetKey, setSliderResetKey] = useState(0);
-
   const [loading, setLoading] = useState(false);
-  const acceptButtonRef = useRef(null);
 
+  const acceptButtonRef = useRef(null);
   const isToastOpen = Boolean(toast);
 
-  useEffect(() => {
-    if (!isToastOpen) return;
-    const t = window.setTimeout(() => acceptButtonRef.current?.focus(), 50);
-    return () => window.clearTimeout(t);
-  }, [isToastOpen]);
+const [deferredPrompt, setDeferredPrompt] = useState(null);
+const [installDismissed, setInstallDismissed] = useState(false);
+const [installState, setInstallState] = useState(() => {
+  const ios = isIosDevice();
+  const installed = isStandaloneMode();
+
+  return {
+    canInstall: false,
+    isIOS: ios,
+    isInstalled: installed,
+    showFallback: !ios && !installed,
+  };
+});
+
+useEffect(() => {
+  if (!isToastOpen) return;
+  const t = window.setTimeout(() => acceptButtonRef.current?.focus(), 50);
+  return () => window.clearTimeout(t);
+}, [isToastOpen]);
+
+useEffect(() => {
+  const handleBeforeInstallPrompt = (e) => {
+    e.preventDefault();
+
+    setDeferredPrompt(e);
+    setInstallState((prev) => ({
+      ...prev,
+      canInstall: true,
+      showFallback: false,
+    }));
+  };
+
+  const handleAppInstalled = () => {
+    setDeferredPrompt(null);
+    setInstallState((prev) => ({
+      ...prev,
+      canInstall: false,
+      isInstalled: true,
+      showFallback: false,
+    }));
+  };
+
+  window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+  window.addEventListener("appinstalled", handleAppInstalled);
+
+  return () => {
+    window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.removeEventListener("appinstalled", handleAppInstalled);
+  };
+}, []);
 
   const closeToast = () => {
     setToast(null);
@@ -622,24 +754,60 @@ export default function App() {
     setLoading(false);
   };
 
-  // Navegación desde sliders (no toast aquí: navega directo)
   const goLogin = () => setScreen("login");
   const goRegister = () => setScreen("register");
 
-  // Submit handlers (demo). Aquí luego conectas tu API.
   const submitLogin = ({ email }) => {
     setLoading(true);
-    setToast({ title: "Iniciar sesión", message: `Validando credenciales para ${email}...` });
+    setToast({
+      title: "Iniciar sesión",
+      message: `Validando credenciales para ${email}...`,
+    });
   };
 
   const submitRegister = ({ email }) => {
     setLoading(true);
-    setToast({ title: "Registro", message: `Creando cuenta para ${email}...` });
+    setToast({
+      title: "Registro",
+      message: `Creando cuenta para ${email}...`,
+    });
   };
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt || typeof deferredPrompt.prompt !== "function") return;
+
+    await deferredPrompt.prompt();
+    const result = await deferredPrompt.userChoice;
+
+    if (result?.outcome === "accepted") {
+      setDeferredPrompt(null);
+      setInstallState((prev) => ({
+        ...prev,
+        canInstall: false,
+        showFallback: false,
+      }));
+    }
+  };
+
+  const handleInstallClose = () => {
+    setInstallDismissed(true);
+  };
+
+  const shouldShowInstallBanner = !installDismissed && !installState.isInstalled;
 
   return (
     <ScreenShell>
-      {isToastOpen ? <div aria-hidden="true" className="fixed inset-0 z-40 bg-ink/20 backdrop-blur-[2px]" /> : null}
+      {shouldShowInstallBanner ? (
+        <InstallBanner
+          installState={installState}
+          onInstall={handleInstallClick}
+          onClose={handleInstallClose}
+        />
+      ) : null}
+
+      {isToastOpen ? (
+        <div aria-hidden="true" className="fixed inset-0 z-40 bg-ink/20 backdrop-blur-[2px]" />
+      ) : null}
 
       <ActionToast
         open={isToastOpen}
