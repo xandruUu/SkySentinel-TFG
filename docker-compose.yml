@@ -5,15 +5,15 @@ services:
     restart: always
     environment:
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: 7yOLjbE0RSa9EJEA14
+      POSTGRES_PASSWORD: "admin1234"
       POSTGRES_DB: skysentinel_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - ./database_data:/var/lib/postgresql/data
 
   skysentinel_backend:
-    build: ./backend 
+    build: ./backend
     container_name: skysentinel_api_container
     volumes:
       - ./backend:/app
