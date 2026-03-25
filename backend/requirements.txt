@@ -8,3 +8,4 @@ python-jose[cryptography]
 pwdlib
 email-validator
 argon2-cffi
+requests

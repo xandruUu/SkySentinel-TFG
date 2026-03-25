@@ -14,6 +14,15 @@ class Settings(BaseSettings):
         alias="ACCESS_TOKEN_EXPIRE_MINUTES",
     )
 
+    opensky_client_id: str = Field(alias="OPENSKY_CLIENT_ID")
+    opensky_client_secret: str = Field(alias="OPENSKY_CLIENT_SECRET")
+    opensky_token_url: str = Field(alias="OPENSKY_TOKEN_URL")
+    opensky_base_url: str = Field(alias="OPENSKY_BASE_URL")
+    opensky_http_timeout_seconds: int = Field(
+        default=20,
+        alias="OPENSKY_HTTP_TIMEOUT_SECONDS",
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",
