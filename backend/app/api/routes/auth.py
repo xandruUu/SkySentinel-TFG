@@ -10,7 +10,6 @@ from app.core.security import hash_password
 from app.core.security import verify_password
 from app.crud.user import create_user
 from app.crud.user import get_user_by_email
-from app.crud.user import get_user_by_username
 from app.db.database import get_db
 from app.db.models.user import User
 from app.schemas.auth import TokenResponse
@@ -44,23 +43,14 @@ def register_user(
             detail="El email ya está registrado",
         )
 
-    user_with_same_username = get_user_by_username(
-        db_session=database_session,
-        username=user_data.username,
-    )
-    if user_with_same_username is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El nombre de usuario ya está en uso",
-        )
-
     hashed_user_password = hash_password(user_data.password)
 
     created_user = create_user(
         db_session=database_session,
-        username=user_data.username,
         email=user_data.email,
         password_hash=hashed_user_password,
+        role="user",
+        team_id=None,
     )
 
     return UserResponse.model_validate(created_user)
@@ -96,14 +86,8 @@ def login_user(
             detail="Credenciales inválidas",
         )
 
-    if not existing_user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuario inactivo",
-        )
-
     access_token = create_access_token(
-        data={"sub": str(existing_user.id)}
+        data={"sub": str(existing_user.user_id)}
     )
 
     return TokenResponse(

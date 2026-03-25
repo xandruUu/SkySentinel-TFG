@@ -1,29 +1,16 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 from pydantic import EmailStr
 from pydantic import Field
 from pydantic import field_validator
 
-from app.utils.validators import is_valid_username
 from app.utils.validators import normalize_email
-from app.utils.validators import normalize_username
 
 
 class UserCreateRequest(BaseModel):
-    username: str = Field(min_length=3, max_length=30)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
-
-    @field_validator("username")
-    @classmethod
-    def validate_username(cls, value: str) -> str:
-        normalized_username = normalize_username(value)
-
-        if not is_valid_username(normalized_username):
-            raise ValueError(
-                "El nombre de usuario solo puede contener letras, números, guion y guion bajo."
-            )
-
-        return normalized_username
 
     @field_validator("email")
     @classmethod
@@ -42,10 +29,10 @@ class UserLoginRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: int
-    username: str
+    user_id: int
     email: EmailStr
-    is_active: bool
-    is_verified: bool
+    role: str
+    created_at: datetime
+    team_id: int | None = None
 
     model_config = {"from_attributes": True}
