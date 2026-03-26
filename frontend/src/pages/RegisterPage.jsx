@@ -12,16 +12,17 @@ export default function RegisterPage({
   onGoLogin,
   loading,
 }) {
-  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [pass2, setPass2] = useState("");
 
-  const passOk = pass.trim().length >= 6;
+  const usernameOk = username.trim().length >= 3;
+  const passOk = pass.trim().length >= 8;
   const match = pass === pass2 && pass2.length > 0;
 
   const canSubmit =
-    name.trim().length >= 2 &&
+    usernameOk &&
     email.trim().length > 3 &&
     passOk &&
     match;
@@ -29,7 +30,12 @@ export default function RegisterPage({
   const submit = (e) => {
     e.preventDefault();
     if (!canSubmit || loading) return;
-    onSubmit({ name, email, pass });
+
+    onSubmit({
+      username,
+      email,
+      pass,
+    });
   };
 
   return (
@@ -46,11 +52,11 @@ export default function RegisterPage({
 
         <form className="mt-6 space-y-4" onSubmit={submit}>
           <TextInput
-            label="Nombre"
-            value={name}
-            onChange={setName}
-            placeholder="Tu nombre"
-            autoComplete="name"
+            label="Nombre de usuario"
+            value={username}
+            onChange={setUsername}
+            placeholder="xandru_01"
+            autoComplete="username"
           />
 
           <TextInput
@@ -67,7 +73,7 @@ export default function RegisterPage({
             type="password"
             value={pass}
             onChange={setPass}
-            placeholder="Mínimo 6 caracteres"
+            placeholder="Mínimo 8 caracteres"
             autoComplete="new-password"
           />
 
@@ -83,7 +89,8 @@ export default function RegisterPage({
           <div className="rounded-2xl bg-card p-4 text-sm text-muted ring-1 ring-primary/10">
             <p className="font-semibold text-ink">Requisitos</p>
             <ul className="mt-2 space-y-1">
-              <li>• Contraseña ≥ 6 caracteres</li>
+              <li>• Usuario ≥ 3 caracteres</li>
+              <li>• Contraseña ≥ 8 caracteres</li>
               <li>• Las contraseñas coinciden</li>
             </ul>
           </div>

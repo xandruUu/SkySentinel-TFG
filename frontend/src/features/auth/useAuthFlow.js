@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { getMe, loginUser, registerUser } from "./authApi.js";
 
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const ACCESS_TOKEN_KEY = "skysentinel_access_token";
+const CURRENT_USER_KEY = "skysentinel_current_user";
 
 export function useAuthFlow({ onSuccess }) {
   const [loading, setLoading] = useState(false);
@@ -26,56 +28,73 @@ export function useAuthFlow({ onSuccess }) {
     });
   };
 
+  const saveSession = ({ accessToken, user }) => {
+    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+  };
+
   const handleLogin = async ({ email, pass }) => {
     try {
       setLoading(true);
-
-      // Placeholder hasta conectar con backend real
-      await wait(700);
 
       if (!email || !pass) {
         openToast("Error de acceso", "Debes completar correo y contraseña.");
         return;
       }
 
+      const tokenResponse = await loginUser({
+        email,
+        password: pass,
+      });
+
+      const user = await getMe(tokenResponse.access_token);
+
+      saveSession({
+        accessToken: tokenResponse.access_token,
+        user,
+      });
+
       openToast(
         "Acceso correcto",
-        `Has iniciado sesión como ${email}.`
+        `Has iniciado sesión como ${user.username}.`
       );
 
       onSuccess?.();
-    } catch {
+    } catch (error) {
       openToast(
-        "Error",
-        "Ha ocurrido un problema durante el inicio de sesión."
+        "Error de acceso",
+        error.message || "No se ha podido iniciar sesión."
       );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRegister = async ({ name, email, pass }) => {
+  const handleRegister = async ({ username, email, pass }) => {
     try {
       setLoading(true);
 
-      // Placeholder hasta conectar con backend real
-      await wait(800);
-
-      if (!name || !email || !pass) {
+      if (!username || !email || !pass) {
         openToast("Registro incompleto", "Faltan campos por rellenar.");
         return;
       }
 
+      const createdUser = await registerUser({
+        username,
+        email,
+        password: pass,
+      });
+
       openToast(
         "Cuenta creada",
-        `La cuenta de ${name} se ha creado correctamente.`
+        `La cuenta de ${createdUser.username} se ha creado correctamente.`
       );
 
       onSuccess?.();
-    } catch {
+    } catch (error) {
       openToast(
-        "Error",
-        "Ha ocurrido un problema durante el registro."
+        "Error de registro",
+        error.message || "No se ha podido completar el registro."
       );
     } finally {
       setLoading(false);
