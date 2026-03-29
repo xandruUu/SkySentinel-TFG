@@ -1,8 +1,12 @@
 import path from "path";
+import { fileURLToPath } from "url";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export default defineConfig({
   plugins: [
@@ -46,25 +50,34 @@ export default defineConfig({
         ],
       },
       devOptions: {
-        enabled: true,
+        enabled: false,
       },
     }),
   ],
+
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
+
   server: {
-    host: true,
+    host: "0.0.0.0",
     port: 5173,
-    allowedHosts: [
-      "phuong-hypertoxic-portia.ngrok-free.dev",
-      ".ngrok-free.app",
-      ".ngrok-free.dev",
-    ],
+    strictPort: true,
+    allowedHosts: true,
+    hmr: {
+      clientPort: 443,
+    },
     watch: {
       usePolling: true,
+    },
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
 });
