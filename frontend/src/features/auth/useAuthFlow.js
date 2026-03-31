@@ -56,7 +56,7 @@ export function useAuthFlow({ onSuccess }) {
 
       openToast(
         "Acceso correcto",
-        `Has iniciado sesión como ${user.username}.`
+        `Has iniciado sesión como ${user.email}.`
       );
 
       onSuccess?.();
@@ -70,24 +70,26 @@ export function useAuthFlow({ onSuccess }) {
     }
   };
 
-  const handleRegister = async ({ username, email, pass }) => {
+  const handleRegister = async ({ email, pass }) => {
     try {
       setLoading(true);
 
-      if (!username || !email || !pass) {
-        openToast("Registro incompleto", "Faltan campos por rellenar.");
+      if (!email || !pass) {
+        openToast(
+          "Registro incompleto",
+          "Debes completar correo y contraseña."
+        );
         return;
       }
 
       const createdUser = await registerUser({
-        username,
         email,
         password: pass,
       });
 
       openToast(
         "Cuenta creada",
-        `La cuenta de ${createdUser.username} se ha creado correctamente.`
+        `La cuenta ${createdUser.email} se ha creado correctamente.`
       );
 
       onSuccess?.();
