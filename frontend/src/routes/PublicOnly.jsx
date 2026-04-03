@@ -1,0 +1,20 @@
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../features/auth/useAuth.js";
+
+export default function PublicOnly({ children }) {
+  const { isAuthenticated, initializing } = useAuth();
+
+  if (initializing) {
+    return (
+      <div className="min-h-dvh grid place-items-center text-muted">
+        Cargando...
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/app" replace />;
+  }
+
+  return children;
+}

@@ -1,47 +1,49 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import ScreenShell from "../shared/ui/ScreenShell.jsx";
 import Card from "../shared/ui/Card.jsx";
 import TextInput from "../shared/ui/TextInput.jsx";
 import PrimaryButton from "../shared/ui/PrimaryButton.jsx";
 import GhostButton from "../shared/ui/GhostButton.jsx";
 import HeaderBar from "../widgets/HeaderBar.jsx";
+import { useAuth } from "../features/auth/useAuth.js";
 
-export default function RegisterPage({
-  onBack,
-  onSubmit,
-  onGoLogin,
-  loading,
-}) {
-  const [username, setUsername] = useState("");
+export default function RegisterPage() {
+  const navigate = useNavigate();
+  const { register } = useAuth();
+
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [pass2, setPass2] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  const usernameOk = username.trim().length >= 3;
   const passOk = pass.trim().length >= 8;
   const match = pass === pass2 && pass2.length > 0;
+  const canSubmit = email.trim().length > 3 && passOk && match;
 
-  const canSubmit =
-    usernameOk &&
-    email.trim().length > 3 &&
-    passOk &&
-    match;
-
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    if (!canSubmit || loading) return;
+    if (!canSubmit || submitting) return;
 
-    onSubmit({
-      username,
-      email,
-      pass,
-    });
+    setErrorMsg("");
+    setSubmitting(true);
+
+    try {
+      await register({ email, password: pass });
+      // Tras registrar, enviamos al login con replace
+      navigate("/login", { replace: true });
+    } catch (err) {
+      setErrorMsg(err?.message || "No se ha podido completar el registro.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <ScreenShell>
       <Card>
-        <HeaderBar title="Crear cuenta" onBack={onBack} />
+        <HeaderBar title="Crear cuenta" onBack={() => navigate("/", { replace: true })} />
 
         <div className="mt-6">
           <h2 className="text-2xl font-bold text-primary">Crea tu cuenta</h2>
@@ -50,15 +52,14 @@ export default function RegisterPage({
           </p>
         </div>
 
-        <form className="mt-6 space-y-4" onSubmit={submit}>
-          <TextInput
-            label="Nombre de usuario"
-            value={username}
-            onChange={setUsername}
-            placeholder="xandru_01"
-            autoComplete="username"
-          />
+        {errorMsg && (
+          <div className="mt-4 rounded-2xl bg-card p-4 text-sm ring-1 ring-primary/10">
+            <p className="font-semibold text-ink">Error</p>
+            <p className="mt-1 text-muted">{errorMsg}</p>
+          </div>
+        )}
 
+        <form className="mt-6 space-y-4" onSubmit={submit}>
           <TextInput
             label="Correo electrónico"
             type="email"
@@ -86,33 +87,20 @@ export default function RegisterPage({
             autoComplete="new-password"
           />
 
-          <div className="rounded-2xl bg-card p-4 text-sm text-muted ring-1 ring-primary/10">
-            <p className="font-semibold text-ink">Requisitos</p>
-            <ul className="mt-2 space-y-1">
-              <li>• Usuario ≥ 3 caracteres</li>
-              <li>• Contraseña ≥ 8 caracteres</li>
-              <li>• Las contraseñas coinciden</li>
-            </ul>
-          </div>
-
-          <PrimaryButton type="submit" disabled={!canSubmit || loading}>
-            {loading ? "Creando..." : "Crear cuenta"}
+          <PrimaryButton type="submit" disabled={!canSubmit || submitting}>
+            {submitting ? "Creando..." : "Crear cuenta"}
           </PrimaryButton>
         </form>
 
         <div className="mt-5 text-sm text-muted">
           ¿Ya tienes cuenta?{" "}
-          <button
-            type="button"
-            onClick={onGoLogin}
-            className="font-semibold text-secondary hover:underline"
-          >
+          <Link to="/login" className="font-semibold text-secondary hover:underline">
             Iniciar sesión
-          </button>
+          </Link>
         </div>
 
         <div className="mt-4">
-          <GhostButton type="button" onClick={onBack}>
+          <GhostButton type="button" onClick={() => navigate("/", { replace: true })}>
             Volver al inicio
           </GhostButton>
         </div>

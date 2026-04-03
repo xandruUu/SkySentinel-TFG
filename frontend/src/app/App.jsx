@@ -1,68 +1,79 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import LandingPage from "../pages/LandingPage.jsx";
 import LoginPage from "../pages/LoginPage.jsx";
 import RegisterPage from "../pages/RegisterPage.jsx";
-import ActionToast from "../shared/feedback/ActionToast.jsx";
-import { useAuthFlow } from "../features/auth/useAuthFlow.js";
+import ProtectedScreen from "../pages/ProtectedScreen.jsx";
+import { AuthProvider } from "../features/auth/authProvider.jsx";
+import { useAuth } from "../features/auth/useAuth.js";
+import RequireAuth from "../routes/requireAuth.jsx";
+import PublicOnly from "../routes/PublicOnly.jsx";
 
-export default function App() {
-  const [screen, setScreen] = useState("landing");
+function LandingRoute() {
   const [sliderResetKey, setSliderResetKey] = useState(0);
-  const acceptButtonRef = useRef(null);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
-  const {
-    loading,
-    toast,
-    closeToast,
-    handleLogin,
-    handleRegister,
-  } = useAuthFlow({
-    onSuccess: () => {
-      setSliderResetKey((prev) => prev + 1);
-      setScreen("landing");
-    },
-  });
+  const goLogin = () => navigate("/login");
+  const goRegister = () => navigate("/register");
+  const goApp = () => navigate("/app");
 
-  const goLanding = () => setScreen("landing");
-  const goLogin = () => setScreen("login");
-  const goRegister = () => setScreen("register");
+  const doLogout = async () => {
+    await logout();
+    setSliderResetKey((prev) => prev + 1);
+    navigate("/", { replace: true });
+  };
 
   return (
-    <>
-      {screen === "landing" && (
-        <LandingPage
-          onGoLogin={goLogin}
-          onGoRegister={goRegister}
-          sliderResetKey={sliderResetKey}
-          disabled={loading}
-        />
-      )}
+    <LandingPage
+      onGoLogin={goLogin}
+      onGoRegister={goRegister}
+      sliderResetKey={sliderResetKey}
+      disabled={false}
+      user={user}
+      onGoApp={goApp}
+      onLogout={doLogout}
+    />
+  );
+}
 
-      {screen === "login" && (
-        <LoginPage
-          onBack={goLanding}
-          onSubmit={handleLogin}
-          onGoRegister={goRegister}
-          loading={loading}
-        />
-      )}
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<LandingRoute />} />
 
-      {screen === "register" && (
-        <RegisterPage
-          onBack={goLanding}
-          onSubmit={handleRegister}
-          onGoLogin={goLogin}
-          loading={loading}
-        />
-      )}
+          <Route
+            path="/login"
+            element={
+              <PublicOnly>
+                <LoginPage />
+              </PublicOnly>
+            }
+          />
 
-      <ActionToast
-        open={toast.open}
-        title={toast.title}
-        message={toast.message}
-        onAccept={closeToast}
-        acceptButtonRef={acceptButtonRef}
-      />
-    </>
+          <Route
+            path="/register"
+            element={
+              <PublicOnly>
+                <RegisterPage />
+              </PublicOnly>
+            }
+          />
+
+          <Route
+            path="/app"
+            element={
+              <RequireAuth>
+                <ProtectedScreen />
+              </RequireAuth>
+            }
+          />
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

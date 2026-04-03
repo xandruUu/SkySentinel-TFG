@@ -2,6 +2,7 @@ const API_BASE_URL = "";
 
 export async function apiRequest(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {}),
@@ -9,14 +10,10 @@ export async function apiRequest(path, options = {}) {
     ...options,
   });
 
-  let data = null;
   const contentType = response.headers.get("content-type") || "";
-
-  if (contentType.includes("application/json")) {
-    data = await response.json();
-  } else {
-    data = await response.text();
-  }
+  const data = contentType.includes("application/json")
+    ? await response.json()
+    : await response.text();
 
   if (!response.ok) {
     const message =
@@ -32,28 +29,27 @@ export async function apiRequest(path, options = {}) {
 export async function registerUser({ email, password }) {
   return apiRequest("/api/auth/register", {
     method: "POST",
-    body: JSON.stringify({
-      email,
-      password,
-    }),
+    body: JSON.stringify({ email, password }),
   });
 }
 
 export async function loginUser({ email, password }) {
   return apiRequest("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({
-      email,
-      password,
-    }),
+    body: JSON.stringify({ email, password }),
   });
 }
 
 export async function getMe(token) {
   return apiRequest("/api/auth/me", {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+}
+
+export async function logoutUser(token) {
+  return apiRequest("/api/auth/logout", {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
 }

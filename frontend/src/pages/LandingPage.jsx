@@ -10,7 +10,12 @@ export default function LandingPage({
   onGoRegister,
   sliderResetKey,
   disabled,
+  user,
+  onGoApp,
+  onLogout,
 }) {
+  const isAuthed = Boolean(user);
+
   return (
     <ScreenShell>
       <Card>
@@ -25,44 +30,62 @@ export default function LandingPage({
             Your Personal Flight Radar
           </p>
 
-          <p className="mt-2 text-sm text-muted">
-            PWA · iOS · Android · Desktop
-          </p>
+          <p className="mt-2 text-sm text-muted">PWA · iOS · Android · Desktop</p>
 
-          <div className="mt-8 w-full space-y-4">
-            <SlideToAct
-              key={`login-${sliderResetKey}`}
-              label="Desliza para iniciar sesión"
-              direction="ltr"
-              accent="secondary"
-              onComplete={onGoLogin}
-              disabled={disabled}
-            />
+          {!isAuthed ? (
+            <>
+              <div className="mt-8 w-full space-y-4">
+                <SlideToAct
+                  key={`login-${sliderResetKey}`}
+                  label="Desliza para iniciar sesión"
+                  direction="ltr"
+                  accent="secondary"
+                  onComplete={onGoLogin}
+                  disabled={disabled}
+                />
 
-            <SlideToAct
-              key={`register-${sliderResetKey}`}
-              label="Desliza para crear cuenta"
-              direction="rtl"
-              accent="radar"
-              onComplete={onGoRegister}
-              disabled={disabled}
-            />
-          </div>
+                <SlideToAct
+                  key={`register-${sliderResetKey}`}
+                  label="Desliza para crear cuenta"
+                  direction="rtl"
+                  accent="radar"
+                  onComplete={onGoRegister}
+                  disabled={disabled}
+                />
+              </div>
 
-          <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row">
-            <PrimaryButton
-              type="button"
-              variant="secondary"
-              onClick={onGoLogin}
-              disabled={disabled}
-            >
-              Iniciar sesión
-            </PrimaryButton>
+              <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row">
+                <PrimaryButton
+                  type="button"
+                  variant="secondary"
+                  onClick={onGoLogin}
+                  disabled={disabled}
+                >
+                  Iniciar sesión
+                </PrimaryButton>
 
-            <GhostButton type="button" onClick={onGoRegister}>
-              Crear cuenta
-            </GhostButton>
-          </div>
+                <GhostButton type="button" onClick={onGoRegister}>
+                  Crear cuenta
+                </GhostButton>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="mt-8 text-sm text-muted">
+                Sesión iniciada como{" "}
+                <span className="font-semibold text-ink">{user.email}</span>
+              </p>
+
+              <div className="mt-6 flex w-full flex-col gap-3 sm:flex-row">
+                <PrimaryButton type="button" onClick={onGoApp}>
+                  Ir al panel
+                </PrimaryButton>
+                <GhostButton type="button" onClick={onLogout}>
+                  Cerrar sesión
+                </GhostButton>
+              </div>
+            </>
+          )}
         </div>
       </Card>
     </ScreenShell>
