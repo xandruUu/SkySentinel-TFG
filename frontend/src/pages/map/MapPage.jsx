@@ -1,278 +1,317 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
-import { createRoot } from "react-dom/client";
-
-import { useAuth } from "../../features/auth/useAuth.js";
-import { useFavorites } from "../../features/favorites/useFavorites.js";
 import { useLiveFlights } from "../../features/flights/useLiveFlights.js";
-import { toAircraftFeatureCollection } from "../../features/flights/flightsGeojson.js";
-import FloatingFiltersPanel from "../../widgets/map/FloatingFiltersPanel.jsx";
-import FlightPopup from "../../widgets/map/FlightPopup.jsx";
 
-// Basemap recomendado para DEV (puedes cambiarlo después)
-const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/bright";
+const MADRID_BOUNDS = {
+  lamin: 40.0,
+  lomin: -4.5,
+  lamax: 41.5,
+  lomax: -2.5,
+};
 
 const MADRID_CENTER = [-3.7038, 40.4168];
-const DEFAULT_BOUNDS = { lamin: 40.0, lomin: -4.5, lamax: 41.5, lomax: -2.5 };
 
-// Debe alinearse en lo posible con la cuantización del backend
-function quantize(value, step = 0.1) {
-  return Math.round(value / step) * step;
+function buildRasterStyle() {
+  return {
+    version: 8,
+    sources: {
+      osm: {
+        type: "raster",
+        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        attribution: "© OpenStreetMap contributors",
+      },
+    },
+    layers: [
+      {
+        id: "osm",
+        type: "raster",
+        source: "osm",
+      },
+    ],
+  };
 }
 
-function makePlaneIconCanvas() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 64;
-  canvas.height = 64;
+function normalizeState(rawState) {
+  if (!rawState) return null;
 
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return canvas;
+  if (!Array.isArray(rawState)) {
+    const icao24 = String(rawState.icao24 || "").toLowerCase();
+    const longitude = rawState.longitude;
+    const latitude = rawState.latitude;
 
-  ctx.clearRect(0, 0, 64, 64);
+    if (typeof longitude !== "number" || typeof latitude !== "number") {
+      return null;
+    }
 
-  // flecha simple
-  ctx.fillStyle = "#000";
-  ctx.beginPath();
-  ctx.moveTo(32, 6);
-  ctx.lineTo(44, 44);
-  ctx.lineTo(32, 38);
-  ctx.lineTo(20, 44);
-  ctx.closePath();
-  ctx.fill();
+    return {
+      icao24,
+      callsign: String(rawState.callsign || "").trim(),
+      origin_country: rawState.origin_country || "",
+      longitude,
+      latitude,
+      velocity: rawState.velocity ?? null,
+      true_track: rawState.true_track ?? null,
+      on_ground: Boolean(rawState.on_ground),
+      baro_altitude: rawState.baro_altitude ?? null,
+      geo_altitude: rawState.geo_altitude ?? null,
+    };
+  }
 
-  return canvas;
+  const longitude = rawState[5];
+  const latitude = rawState[6];
+
+  if (typeof longitude !== "number" || typeof latitude !== "number") {
+    return null;
+  }
+
+  return {
+    icao24: String(rawState[0] || "").toLowerCase(),
+    callsign: String(rawState[1] || "").trim(),
+    origin_country: rawState[2] || "",
+    longitude,
+    latitude,
+    velocity: rawState[9] ?? null,
+    true_track: rawState[10] ?? null,
+    on_ground: Boolean(rawState[8]),
+    baro_altitude: rawState[7] ?? null,
+    geo_altitude: rawState[13] ?? null,
+  };
+}
+
+function toFeatureCollection(states, search, hideGround) {
+  const q = String(search || "").trim().toLowerCase();
+
+  const features = (states || [])
+    .map(normalizeState)
+    .filter(Boolean)
+    .filter((aircraft) => {
+      if (hideGround && aircraft.on_ground) return false;
+
+      if (!q) return true;
+
+      const haystack =
+        `${aircraft.icao24} ${aircraft.callsign} ${aircraft.origin_country}`.toLowerCase();
+
+      return haystack.includes(q);
+    })
+    .map((aircraft) => ({
+      type: "Feature",
+      id: aircraft.icao24,
+      properties: aircraft,
+      geometry: {
+        type: "Point",
+        coordinates: [aircraft.longitude, aircraft.latitude],
+      },
+    }));
+
+  return {
+    type: "FeatureCollection",
+    features,
+  };
+}
+
+function formatTime(timestamp) {
+  if (!timestamp) return "—";
+  return new Date(timestamp).toLocaleTimeString();
 }
 
 export default function MapPage() {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
 
-  // ⚠️ Importante: bounds en ref para NO reiniciar el polling
-  const boundsRef = useRef(DEFAULT_BOUNDS);
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapError, setMapError] = useState("");
+  const [search, setSearch] = useState("");
+  const [hideGround, setHideGround] = useState(true);
 
-  const popupRef = useRef(null);
-  const popupRootRef = useRef(null);
-
-  const { token } = useAuth();
-  const { favorites } = useFavorites();
-
-  const favoritesSet = useMemo(() => {
-    return new Set(favorites.map((f) => (f.icao24 || "").toLowerCase()));
-  }, [favorites]);
-
-  const [filters, setFilters] = useState({
-    query: "",
-    favoritesOnly: false,
-    hideGround: true,
-  });
-
-  // Polling más conservador; luego lo hacemos adaptativo en el hook
-  const { data: flightsData, error, meta } = useLiveFlights({
-    token,
-    boundsRef,
+  const { data, error, loading, lastUpdatedAt } = useLiveFlights({
+    bounds: MADRID_BOUNDS,
+    refreshMs: 15000,
     enabled: true,
-    baseRefreshMs: 25000,
   });
+
+  const rawStates = data?.states || [];
 
   const geojson = useMemo(() => {
-    if (!flightsData) return { type: "FeatureCollection", features: [] };
-    return toAircraftFeatureCollection({
-      flightsResponse: flightsData,
-      favoritesSet,
-      filters,
-    });
-  }, [flightsData, favoritesSet, filters]);
+    return toFeatureCollection(rawStates, search, hideGround);
+  }, [rawStates, search, hideGround]);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: MAP_STYLE_URL,
+      style: buildRasterStyle(),
       center: MADRID_CENTER,
       zoom: 7,
+      attributionControl: true,
     });
 
-    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+    const doResize = () => {
+      try {
+        map.resize();
+      } catch {
+        // no-op
+      }
+    };
 
-    const handleResize = () => map.resize();
-    window.addEventListener("resize", handleResize);
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
 
     map.on("load", () => {
-      // Asegura tamaño correcto del canvas tras layout
-      map.resize();
-
-      const iconCanvas = makePlaneIconCanvas();
-      if (!map.hasImage("aircraft-icon")) {
-        // sdf permite recolorear con icon-color
-        map.addImage("aircraft-icon", iconCanvas, { sdf: true });
-      }
+      setMapLoaded(true);
+      setMapError("");
 
       if (!map.getSource("aircraft")) {
         map.addSource("aircraft", {
           type: "geojson",
-          data: { type: "FeatureCollection", features: [] },
-          promoteId: "icao24",
+          data: {
+            type: "FeatureCollection",
+            features: [],
+          },
         });
       }
 
-      if (!map.getLayer("aircraft-layer")) {
+      if (!map.getLayer("aircraft-circles")) {
         map.addLayer({
-          id: "aircraft-layer",
-          type: "symbol",
+          id: "aircraft-circles",
+          type: "circle",
           source: "aircraft",
-          layout: {
-            "icon-image": "aircraft-icon",
-            "icon-size": 0.55,
-            "icon-allow-overlap": true,
-            "icon-ignore-placement": true,
-            "icon-rotate": ["coalesce", ["get", "true_track"], 0],
-            "icon-rotation-alignment": "map",
-          },
           paint: {
-            "icon-color": [
-              "case",
-              ["boolean", ["get", "is_favorite"], false],
-              "#ff7a00",
-              "#2563eb",
-            ],
-            "icon-halo-color": "#ffffff",
-            "icon-halo-width": 1,
+            "circle-radius": 6,
+            "circle-color": "#2563eb",
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#ffffff",
           },
         });
       }
 
-      // Bounds inicial cuantizado
-      const b = map.getBounds();
-      boundsRef.current = {
-        lamin: quantize(b.getSouth()),
-        lomin: quantize(b.getWest()),
-        lamax: quantize(b.getNorth()),
-        lomax: quantize(b.getEast()),
-      };
-
-      let moveTimer = null;
-      map.on("moveend", () => {
-        if (moveTimer) clearTimeout(moveTimer);
-
-        // Debounce corto: evita ráfagas
-        moveTimer = setTimeout(() => {
-          const bb = map.getBounds();
-          boundsRef.current = {
-            lamin: quantize(bb.getSouth()),
-            lomin: quantize(bb.getWest()),
-            lamax: quantize(bb.getNorth()),
-            lomax: quantize(bb.getEast()),
-          };
-        }, 200);
-      });
-
-      map.on("click", "aircraft-layer", (e) => {
-        const feature = e.features?.[0];
+      map.on("click", "aircraft-circles", (event) => {
+        const feature = event.features?.[0];
         if (!feature) return;
 
-        const coords = feature.geometry?.coordinates;
         const props = feature.properties || {};
-        if (!coords) return;
+        const coordinates = feature.geometry?.coordinates;
+        if (!coordinates) return;
 
-        if (popupRef.current) {
-          popupRef.current.remove();
-          popupRef.current = null;
-        }
-        if (popupRootRef.current) {
-          popupRootRef.current.unmount();
-          popupRootRef.current = null;
-        }
+        const html = `
+          <div style="min-width:220px;font-family:Arial,sans-serif;">
+            <strong>${props.callsign || props.icao24 || "Aircraft"}</strong><br/>
+            ICAO24: ${props.icao24 || "—"}<br/>
+            País: ${props.origin_country || "—"}<br/>
+            Velocidad: ${props.velocity ?? "—"}<br/>
+            Rumbo: ${props.true_track ?? "—"}<br/>
+            En tierra: ${props.on_ground ? "Sí" : "No"}
+          </div>
+        `;
 
-        const node = document.createElement("div");
-        const root = createRoot(node);
-        popupRootRef.current = root;
-
-        root.render(
-          <FlightPopup
-            aircraft={{
-              icao24: props.icao24,
-              callsign: props.callsign,
-              origin_country: props.origin_country,
-              velocity: props.velocity,
-              baro_altitude: props.baro_altitude,
-              geo_altitude: props.geo_altitude,
-              true_track: props.true_track,
-              on_ground: props.on_ground,
-            }}
-            onClose={() => {
-              popupRef.current?.remove();
-              popupRef.current = null;
-            }}
-          />
-        );
-
-        const popup = new maplibregl.Popup({ closeOnClick: true })
-          .setLngLat(coords)
-          .setDOMContent(node)
+        new maplibregl.Popup()
+          .setLngLat(coordinates)
+          .setHTML(html)
           .addTo(map);
-
-        popup.on("close", () => {
-          popupRootRef.current?.unmount();
-          popupRootRef.current = null;
-          popupRef.current = null;
-        });
-
-        popupRef.current = popup;
       });
 
-      map.on("mouseenter", "aircraft-layer", () => {
+      map.on("mouseenter", "aircraft-circles", () => {
         map.getCanvas().style.cursor = "pointer";
       });
 
-      map.on("mouseleave", "aircraft-layer", () => {
+      map.on("mouseleave", "aircraft-circles", () => {
         map.getCanvas().style.cursor = "";
       });
+
+      requestAnimationFrame(doResize);
+      setTimeout(doResize, 100);
+      setTimeout(doResize, 500);
     });
+
+    map.on("error", (event) => {
+      const message =
+        event?.error?.message || "Error cargando el mapa base.";
+      setMapError(message);
+    });
+
+    window.addEventListener("resize", doResize);
 
     mapRef.current = map;
 
     return () => {
-      window.removeEventListener("resize", handleResize);
-
-      popupRef.current?.remove();
-      popupRef.current = null;
-
-      popupRootRef.current?.unmount();
-      popupRootRef.current = null;
-
+      window.removeEventListener("resize", doResize);
       map.remove();
       mapRef.current = null;
     };
   }, []);
 
-  // Volcar GeoJSON al source
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !mapLoaded) return;
 
     const source = map.getSource("aircraft");
     if (!source) return;
 
     source.setData(geojson);
-  }, [geojson]);
 
-  const creditsText =
-    flightsData?.credits_remaining === null || flightsData?.credits_remaining === undefined
-      ? "—"
-      : flightsData.credits_remaining;
+    try {
+      map.resize();
+    } catch {
+      // no-op
+    }
+  }, [geojson, mapLoaded]);
 
-  const statusText = error
-    ? `Error: ${error}`
-    : flightsData
-      ? `${flightsData.aircraft_count} aviones • créditos ${creditsText} • refresh ${meta.refreshMs / 1000}s`
-      : "Cargando vuelos…";
+  const visibleAircraftCount = geojson.features.length;
 
   return (
-    <div className="relative h-[calc(100dvh-112px)] min-h-[520px] overflow-hidden">
-      <div ref={mapContainerRef} className="absolute inset-0" />
+    <div className="relative bg-slate-100">
+      <div
+        ref={mapContainerRef}
+        className="h-[calc(100dvh-112px)] min-h-[620px] w-full"
+      />
 
-      <FloatingFiltersPanel filters={filters} setFilters={setFilters} statusText={statusText} />
+      <div className="absolute left-4 top-4 z-10 w-[360px] rounded-3xl bg-white/92 p-4 shadow-xl ring-1 ring-slate-200 backdrop-blur">
+        <h2 className="text-lg font-semibold text-slate-900">Filtros</h2>
+
+        <div className="mt-1 text-sm text-slate-500">
+          {data?.aircraft_count ?? 0} aviones · créditos {data?.credits_remaining ?? "—"} · refresh 15s
+        </div>
+
+        <div className="mt-3 space-y-3">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-800">
+              Buscar (callsign o icao24)
+            </label>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="IBE, RYR, 3c6444..."
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
+            />
+          </div>
+
+          <label className="flex items-center justify-between text-sm text-slate-800">
+            <span>Ocultar en tierra</span>
+            <input
+              type="checkbox"
+              checked={hideGround}
+              onChange={(event) => setHideGround(event.target.checked)}
+            />
+          </label>
+        </div>
+
+        <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-xs text-slate-700 ring-1 ring-slate-200">
+          <div><strong>Mapa cargado:</strong> {mapLoaded ? "sí" : "no"}</div>
+          <div><strong>Error mapa:</strong> {mapError || "ninguno"}</div>
+          <div><strong>Error API:</strong> {error || "ninguno"}</div>
+          <div><strong>Loading:</strong> {loading ? "sí" : "no"}</div>
+          <div><strong>Última actualización:</strong> {formatTime(lastUpdatedAt)}</div>
+          <div><strong>Estados recibidos:</strong> {rawStates.length}</div>
+          <div><strong>Puntos pintados:</strong> {visibleAircraftCount}</div>
+        </div>
+      </div>
+
+      <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2">
+        <div className="rounded-2xl bg-white/85 px-4 py-2 text-xs text-slate-600 shadow ring-1 ring-slate-200">
+          Diagnóstico mapa · Madrid fijo · círculos sin etiquetas
+        </div>
+      </div>
     </div>
   );
 }

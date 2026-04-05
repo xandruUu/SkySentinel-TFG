@@ -1,54 +1,79 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
-from app.crud.favorite_aircraft import add_favorite, get_favorite, list_favorites, remove_favorite
 from app.db.database import get_db
-from app.db.models.user import User
-from app.schemas.favorite import FavoriteCreateRequest, FavoritesListResponse, FavoriteResponse
+from app.db.models.favorite_aircraft import FavoriteAircraft
+from app.api.deps import get_current_user
 
 
-router = APIRouter(prefix="/api/favorites", tags=["favorites"])
+router = APIRouter(prefix="/api/favorites", tags=["Favorites"])
 
 
-@router.get("", response_model=FavoritesListResponse, status_code=status.HTTP_200_OK)
-def get_my_favorites(
-    current_user: User = Depends(get_current_user),
+@router.get("")
+def list_favorites(
     db: Session = Depends(get_db),
-) -> FavoritesListResponse:
-    items = list_favorites(db, current_user.user_id)
-    return FavoritesListResponse(items=[FavoriteResponse.model_validate(x) for x in items])
-
-
-@router.post("", response_model=FavoriteResponse, status_code=status.HTTP_201_CREATED)
-def create_favorite(
-    payload: FavoriteCreateRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> FavoriteResponse:
-    existing = get_favorite(db, current_user.user_id, payload.icao24)
-    if existing is not None:
-        return FavoriteResponse.model_validate(existing)
-
-    created = add_favorite(
-        db=db,
-        user_id=current_user.user_id,
-        icao24=payload.icao24,
-        callsign=payload.callsign,
+    user=Depends(get_current_user),
+):
+    rows = (
+        db.query(FavoriteAircraft)
+        .filter(FavoriteAircraft.user_id == user.id)
+        .order_by(FavoriteAircraft.id.desc())
+        .all()
     )
-    return FavoriteResponse.model_validate(created)
+    return [{"icao24": row.icao24} for row in rows]
 
 
-@router.delete("/{icao24}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_favorite(
+@router.post("/{icao24}")
+def add_favorite(
     icao24: str,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> None:
-    normalized = icao24.strip().lower()
-    existing = get_favorite(db, current_user.user_id, normalized)
-    if existing is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No existe ese favorito.")
+    user=Depends(get_current_user),
+):
+    icao24 = (icao24 or "").lower().strip()
 
-    remove_favorite(db, current_user.user_id, normalized)
-    return None
+    if len(icao24) != 6:
+        raise HTTPException(status_code=400, detail="icao24 inválido")
+
+    existing_row = (
+        db.query(FavoriteAircraft)
+        .filter(
+            FavoriteAircraft.user_id == user.id,
+            FavoriteAircraft.icao24 == icao24,
+        )
+        .first()
+    )
+
+    if existing_row:
+        return {"ok": True, "icao24": icao24}
+
+    favorite = FavoriteAircraft(user_id=user.id, icao24=icao24)
+    db.add(favorite)
+    db.commit()
+
+    return {"ok": True, "icao24": icao24}
+
+
+@router.delete("/{icao24}")
+def remove_favorite(
+    icao24: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    icao24 = (icao24 or "").lower().strip()
+
+    row = (
+        db.query(FavoriteAircraft)
+        .filter(
+            FavoriteAircraft.user_id == user.id,
+            FavoriteAircraft.icao24 == icao24,
+        )
+        .first()
+    )
+
+    if not row:
+        return {"ok": True, "icao24": icao24}
+
+    db.delete(row)
+    db.commit()
+
+    return {"ok": True, "icao24": icao24}

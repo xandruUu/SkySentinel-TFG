@@ -1,21 +1,21 @@
-export async function fetchLiveFlights({ token, bounds }) {
-  const params = new URLSearchParams({
+export async function getLiveFlights({ token, bounds, signal }) {
+  const qs = new URLSearchParams({
     lamin: String(bounds.lamin),
     lomin: String(bounds.lomin),
     lamax: String(bounds.lamax),
     lomax: String(bounds.lomax),
-    include_extended_data: "true",
   });
 
-  const response = await fetch(`/api/flights/live?${params.toString()}`, {
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+  const res = await fetch(`/api/flights/live?${qs.toString()}`, {
+    method: "GET",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    signal,
   });
 
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data?.detail || "Error al cargar vuelos.");
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status} ${txt}`.trim());
   }
-  return data;
+
+  return await res.json();
 }

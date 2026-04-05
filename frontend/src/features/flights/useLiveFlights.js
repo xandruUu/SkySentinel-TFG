@@ -1,76 +1,107 @@
 import { useEffect, useRef, useState } from "react";
-import { fetchLiveFlights } from "./flightsApi.js";
+import { useAuth } from "../auth/useAuth.js";
 
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n));
+async function fetchLiveFlights({ bounds, token }) {
+  const params = new URLSearchParams({
+    lamin: String(bounds.lamin),
+    lomin: String(bounds.lomin),
+    lamax: String(bounds.lamax),
+    lomax: String(bounds.lomax),
+    include_extended_data: "true",
+  });
+
+  const headers = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`/api/flights/live?${params.toString()}`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`HTTP ${response.status} ${text}`);
+  }
+
+  return response.json();
 }
 
 export function useLiveFlights({
-  token,
-  boundsRef,
+  bounds,
+  refreshMs = 15000,
   enabled = true,
-  baseRefreshMs = 25000,
-  minRefreshMs = 15000,
-  maxRefreshMs = 120000,
 }) {
+  const { token, isAuthenticated } = useAuth();
+
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  const [refreshMs, setRefreshMs] = useState(baseRefreshMs);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
 
-  const inFlight = useRef(false);
   const timerRef = useRef(null);
+  const busyRef = useRef(false);
 
   useEffect(() => {
-    if (!enabled || !token || !boundsRef?.current) return;
+    if (!enabled || !bounds || !isAuthenticated || !token) {
+      setData(null);
+      setLoading(false);
+      setError(!token ? "Sin token de autenticación." : "");
+      return;
+    }
 
     let cancelled = false;
 
-    async function tick() {
-      if (cancelled) return;
-      if (document.hidden) return; // pausa si la pestaña no está visible
-      if (inFlight.current) return;
+    const clearTimer = () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
 
-      inFlight.current = true;
-      setError("");
+    const scheduleNext = () => {
+      clearTimer();
+      timerRef.current = setTimeout(() => {
+        void load();
+      }, refreshMs);
+    };
+
+    const load = async () => {
+      if (cancelled || busyRef.current) return;
+
+      busyRef.current = true;
 
       try {
-        const bounds = boundsRef.current;
-        const res = await fetchLiveFlights({ token, bounds });
-        if (!cancelled) {
-          setData(res);
-          // si todo va bien, vuelve gradualmente al base
-          setRefreshMs((prev) => clamp(Math.floor(prev * 0.8), minRefreshMs, baseRefreshMs));
-        }
-      } catch (e) {
-        if (!cancelled) {
-          const msg = e?.message || "Fallo cargando vuelos.";
-          setError(msg);
+        const payload = await fetchLiveFlights({ bounds, token });
+        if (cancelled) return;
 
-          // backoff progresivo
-          setRefreshMs((prev) => clamp(prev * 2, baseRefreshMs, maxRefreshMs));
-        }
+        setData(payload);
+        setError("");
+        setLastUpdatedAt(Date.now());
+      } catch (err) {
+        if (cancelled) return;
+        setError(err?.message || "No se pudieron cargar los vuelos.");
       } finally {
-        inFlight.current = false;
+        if (!cancelled) {
+          setLoading(false);
+          busyRef.current = false;
+          scheduleNext();
+        }
       }
-    }
+    };
 
-    // tick inicial
-    tick();
+    void load();
 
-    // Intervalo único (no se reinicia por cambios de bounds)
-    timerRef.current = setInterval(tick, refreshMs);
-
-    // Si refreshMs cambia por backoff, reajusta el intervalo
     return () => {
       cancelled = true;
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = null;
+      clearTimer();
     };
-  }, [enabled, token, boundsRef, refreshMs, baseRefreshMs, minRefreshMs, maxRefreshMs]);
+  }, [bounds, enabled, refreshMs, isAuthenticated, token]);
 
   return {
     data,
     error,
-    meta: { refreshMs },
+    loading,
+    lastUpdatedAt,
   };
 }
