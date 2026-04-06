@@ -1,12 +1,27 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.db.database import get_db
 from app.db.models.favorite_aircraft import FavoriteAircraft
-from app.api.deps import get_current_user
 
 
 router = APIRouter(prefix="/api/favorites", tags=["Favorites"])
+
+
+def get_current_user_pk(user) -> int:
+    candidate = getattr(user, "id", None)
+
+    if candidate is None:
+        candidate = getattr(user, "user_id", None)
+
+    if candidate is None:
+        raise HTTPException(
+            status_code=500,
+            detail="El usuario autenticado no expone un identificador válido.",
+        )
+
+    return int(candidate)
 
 
 @router.get("")
@@ -14,12 +29,15 @@ def list_favorites(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    current_user_id = get_current_user_pk(user)
+
     rows = (
         db.query(FavoriteAircraft)
-        .filter(FavoriteAircraft.user_id == user.id)
+        .filter(FavoriteAircraft.user_id == current_user_id)
         .order_by(FavoriteAircraft.id.desc())
         .all()
     )
+
     return [{"icao24": row.icao24} for row in rows]
 
 
@@ -29,28 +47,33 @@ def add_favorite(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    icao24 = (icao24 or "").lower().strip()
+    current_user_id = get_current_user_pk(user)
 
-    if len(icao24) != 6:
+    normalized_icao24 = (icao24 or "").strip().lower()
+
+    if len(normalized_icao24) != 6:
         raise HTTPException(status_code=400, detail="icao24 inválido")
 
-    existing_row = (
+    existing_favorite = (
         db.query(FavoriteAircraft)
         .filter(
-            FavoriteAircraft.user_id == user.id,
-            FavoriteAircraft.icao24 == icao24,
+            FavoriteAircraft.user_id == current_user_id,
+            FavoriteAircraft.icao24 == normalized_icao24,
         )
         .first()
     )
 
-    if existing_row:
-        return {"ok": True, "icao24": icao24}
+    if existing_favorite:
+        return {"ok": True, "icao24": normalized_icao24}
 
-    favorite = FavoriteAircraft(user_id=user.id, icao24=icao24)
+    favorite = FavoriteAircraft(
+        user_id=current_user_id,
+        icao24=normalized_icao24,
+    )
     db.add(favorite)
     db.commit()
 
-    return {"ok": True, "icao24": icao24}
+    return {"ok": True, "icao24": normalized_icao24}
 
 
 @router.delete("/{icao24}")
@@ -59,21 +82,21 @@ def remove_favorite(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    icao24 = (icao24 or "").lower().strip()
+    current_user_id = get_current_user_pk(user)
 
-    row = (
+    normalized_icao24 = (icao24 or "").strip().lower()
+
+    favorite = (
         db.query(FavoriteAircraft)
         .filter(
-            FavoriteAircraft.user_id == user.id,
-            FavoriteAircraft.icao24 == icao24,
+            FavoriteAircraft.user_id == current_user_id,
+            FavoriteAircraft.icao24 == normalized_icao24,
         )
         .first()
     )
 
-    if not row:
-        return {"ok": True, "icao24": icao24}
+    if favorite is not None:
+        db.delete(favorite)
+        db.commit()
 
-    db.delete(row)
-    db.commit()
-
-    return {"ok": True, "icao24": icao24}
+    return {"ok": True, "icao24": normalized_icao24}
