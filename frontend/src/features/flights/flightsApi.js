@@ -1,21 +1,44 @@
-export async function getLiveFlights({ token, bounds, signal }) {
-  const qs = new URLSearchParams({
-    lamin: String(bounds.lamin),
-    lomin: String(bounds.lomin),
-    lamax: String(bounds.lamax),
-    lomax: String(bounds.lomax),
+const API_BASE_URL = "";
+
+function getAccessToken() {
+  return localStorage.getItem("access_token");
+}
+
+export async function getLiveFlights(bbox, options = {}) {
+  const accessToken = getAccessToken();
+
+  const params = new URLSearchParams({
+    lamin: String(bbox.lamin),
+    lomin: String(bbox.lomin),
+    lamax: String(bbox.lamax),
+    lomax: String(bbox.lomax),
   });
 
-  const res = await fetch(`/api/flights/live?${qs.toString()}`, {
+  const response = await fetch(`${API_BASE_URL}/api/flights/live?${params.toString()}`, {
     method: "GET",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    signal,
+    signal: options.signal,
+    headers: {
+      Accept: "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
   });
 
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`HTTP ${res.status} ${txt}`.trim());
+  const contentType = response.headers.get("content-type") || "";
+  let data = null;
+
+  if (contentType.includes("application/json")) {
+    data = await response.json();
+  } else {
+    data = await response.text();
   }
 
-  return await res.json();
+  if (!response.ok) {
+    const message =
+      data?.detail ||
+      data?.message ||
+      `Error HTTP ${response.status} al cargar vuelos.`;
+    throw new Error(message);
+  }
+
+  return data;
 }

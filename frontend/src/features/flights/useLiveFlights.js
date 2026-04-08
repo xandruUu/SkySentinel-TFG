@@ -1,107 +1,134 @@
-import { useEffect, useRef, useState } from "react";
-import { useAuth } from "../auth/useAuth.js";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getLiveFlights } from "./flightsApi.js";
 
-async function fetchLiveFlights({ bounds, token }) {
-  const params = new URLSearchParams({
-    lamin: String(bounds.lamin),
-    lomin: String(bounds.lomin),
-    lamax: String(bounds.lamax),
-    lomax: String(bounds.lomax),
-    include_extended_data: "true",
-  });
-
-  const headers = {};
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+function formatTime(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return null;
   }
 
-  const response = await fetch(`/api/flights/live?${params.toString()}`, {
-    headers,
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`HTTP ${response.status} ${text}`);
-  }
-
-  return response.json();
+  return date.toLocaleTimeString();
 }
 
-export function useLiveFlights({
-  bounds,
-  refreshMs = 15000,
-  enabled = true,
-}) {
-  const { token, isAuthenticated } = useAuth();
-
-  const [data, setData] = useState(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
+export function useLiveFlights({ bbox, enabled = true }) {
+  const [flights, setFlights] = useState([]);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+  const [creditsRemaining, setCreditsRemaining] = useState(null);
+  const [nextRefreshSeconds, setNextRefreshSeconds] = useState(15);
 
-  const timerRef = useRef(null);
-  const busyRef = useRef(false);
+  const timeoutRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
-  useEffect(() => {
-    if (!enabled || !bounds || !isAuthenticated || !token) {
-      setData(null);
-      setLoading(false);
-      setError(!token ? "Sin token de autenticación." : "");
-      return;
+  const bboxKey = useMemo(() => {
+    if (!bbox) {
+      return "";
     }
 
-    let cancelled = false;
+    return JSON.stringify({
+      lamin: bbox.lamin,
+      lomin: bbox.lomin,
+      lamax: bbox.lamax,
+      lomax: bbox.lomax,
+    });
+  }, [bbox]);
 
-    const clearTimer = () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
+  useEffect(() => {
+    function clearScheduledRefresh() {
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
-    };
+    }
 
-    const scheduleNext = () => {
-      clearTimer();
-      timerRef.current = setTimeout(() => {
-        void load();
-      }, refreshMs);
-    };
+    function cancelRequest() {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    }
 
-    const load = async () => {
-      if (cancelled || busyRef.current) return;
+    async function fetchFlights() {
+      if (!enabled || !bbox) {
+        setFlights([]);
+        setLoading(false);
+        setError(null);
+        return;
+      }
 
-      busyRef.current = true;
+      clearScheduledRefresh();
+      cancelRequest();
+
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      setLoading(true);
+      setError(null);
 
       try {
-        const payload = await fetchLiveFlights({ bounds, token });
-        if (cancelled) return;
+        const response = await getLiveFlights(bbox, {
+          signal: controller.signal,
+        });
 
-        setData(payload);
-        setError("");
-        setLastUpdatedAt(Date.now());
-      } catch (err) {
-        if (cancelled) return;
-        setError(err?.message || "No se pudieron cargar los vuelos.");
+        console.log("DEBUG /api/flights/live raw response:", response);
+
+        const states = Array.isArray(response?.states) ? response.states : [];
+
+        setFlights(states);
+        setCreditsRemaining(response?.credits_remaining ?? null);
+        setNextRefreshSeconds(
+          Number.isFinite(response?.next_refresh_s) ? response.next_refresh_s : 15
+        );
+        setLastUpdatedAt(formatTime(new Date()));
+      } catch (requestError) {
+        if (requestError?.name === "AbortError") {
+          return;
+        }
+
+        console.error("ERROR useLiveFlights.fetchFlights:", requestError);
+
+        setFlights([]);
+        setError(requestError?.message || "No se pudieron cargar los vuelos.");
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-          busyRef.current = false;
-          scheduleNext();
+        setLoading(false);
+        abortControllerRef.current = null;
+
+        if (enabled && !document.hidden) {
+          const refreshMs = Math.max(nextRefreshSeconds || 15, 5) * 1000;
+
+          timeoutRef.current = window.setTimeout(() => {
+            fetchFlights();
+          }, refreshMs);
         }
       }
-    };
+    }
 
-    void load();
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        clearScheduledRefresh();
+        cancelRequest();
+        return;
+      }
+
+      fetchFlights();
+    }
+
+    fetchFlights();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      cancelled = true;
-      clearTimer();
+      clearScheduledRefresh();
+      cancelRequest();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [bounds, enabled, refreshMs, isAuthenticated, token]);
+  }, [bbox, bboxKey, enabled, nextRefreshSeconds]);
 
   return {
-    data,
+    flights,
     error,
     loading,
     lastUpdatedAt,
+    creditsRemaining,
+    nextRefreshSeconds,
   };
 }

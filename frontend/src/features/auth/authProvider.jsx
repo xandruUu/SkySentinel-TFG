@@ -6,7 +6,7 @@ import {
   readStoredUser,
   saveSession,
 } from "./authStorage.js";
-import { AuthContext } from "./authContext.js";
+import { AuthContext } from "./authContext.jsx";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => readStoredUser());
