@@ -1,8 +1,7 @@
-export function toAircraftFeatureCollection({ flightsResponse, favoritesSet, filters }) {
+export function toAircraftFeatureCollection({ flightsResponse, filters }) {
   const states = flightsResponse?.states || [];
 
   const q = (filters.query || "").trim().toLowerCase();
-  const favoritesOnly = Boolean(filters.favoritesOnly);
   const hideGround = Boolean(filters.hideGround);
 
   const features = [];
@@ -13,16 +12,20 @@ export function toAircraftFeatureCollection({ flightsResponse, favoritesSet, fil
 
     const lon = s.longitude;
     const lat = s.latitude;
-    if (typeof lon !== "number" || typeof lat !== "number") continue;
 
-    const fav = favoritesSet.has(icao24);
+    if (typeof lon !== "number" || typeof lat !== "number") {
+      continue;
+    }
 
-    if (favoritesOnly && !fav) continue;
-    if (hideGround && s.on_ground) continue;
+    if (hideGround && s.on_ground) {
+      continue;
+    }
 
     if (q) {
       const hay = `${icao24} ${callsign}`.toLowerCase();
-      if (!hay.includes(q)) continue;
+      if (!hay.includes(q)) {
+        continue;
+      }
     }
 
     features.push({
@@ -32,7 +35,6 @@ export function toAircraftFeatureCollection({ flightsResponse, favoritesSet, fil
         ...s,
         icao24,
         callsign,
-        is_favorite: fav,
       },
       geometry: {
         type: "Point",

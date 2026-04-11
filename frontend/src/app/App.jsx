@@ -12,8 +12,6 @@ import AppLayout from "./layouts/AppLayout.jsx";
 import MapPage from "../pages/map/MapPage.jsx";
 import ProfilePage from "../pages/profile/ProfilePage.jsx";
 
-import { FavoritesProvider } from "../features/favorites/favoritesProvider.jsx";
-
 function LandingRoute() {
   const [sliderResetKey, setSliderResetKey] = useState(0);
   const { user, logout } = useAuth();
@@ -46,44 +44,42 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <FavoritesProvider>
-          <Routes>
-            <Route path="/" element={<LandingRoute />} />
+        <Routes>
+          <Route path="/" element={<LandingRoute />} />
 
-            <Route
-              path="/login"
-              element={
-                <PublicOnly>
-                  <LoginPage />
-                </PublicOnly>
-              }
-            />
+          <Route
+            path="/login"
+            element={
+              <PublicOnly>
+                <LoginPage />
+              </PublicOnly>
+            }
+          />
 
-            <Route
-              path="/register"
-              element={
-                <PublicOnly>
-                  <RegisterPage />
-                </PublicOnly>
-              }
-            />
+          <Route
+            path="/register"
+            element={
+              <PublicOnly>
+                <RegisterPage />
+              </PublicOnly>
+            }
+          />
 
-            <Route
-              path="/app"
-              element={
-                <RequireAuth>
-                  <AppLayout />
-                </RequireAuth>
-              }
-            >
-              <Route index element={<Navigate to="map" replace />} />
-              <Route path="map" element={<MapPage />} />
-              <Route path="profile" element={<ProfilePage />} />
-            </Route>
+          <Route
+            path="/app"
+            element={
+              <RequireAuth>
+                <AppLayout />
+              </RequireAuth>
+            }
+          >
+            <Route index element={<Navigate to="map" replace />} />
+            <Route path="map" element={<MapPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+          </Route>
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </FavoritesProvider>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </AuthProvider>
     </BrowserRouter>
   );

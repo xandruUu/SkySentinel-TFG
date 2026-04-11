@@ -21,16 +21,6 @@ export default function FloatingFiltersPanel({ filters, setFilters, statusText }
           />
 
           <label className="flex items-center justify-between gap-3 text-sm">
-            <span className="font-semibold text-ink">Solo favoritos</span>
-            <input
-              type="checkbox"
-              checked={filters.favoritesOnly}
-              onChange={(e) => setFilters((p) => ({ ...p, favoritesOnly: e.target.checked }))}
-              className="h-5 w-5"
-            />
-          </label>
-
-          <label className="flex items-center justify-between gap-3 text-sm">
             <span className="font-semibold text-ink">Ocultar en tierra</span>
             <input
               type="checkbox"

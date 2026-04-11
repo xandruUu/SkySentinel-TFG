@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.auth import router as auth_router
 from app.api.routes.flights import router as flights_router
-from app.api.routes.favorites import router as favorites_router
 from app.db.base import Base
 from app.db.database import engine
 
@@ -29,7 +28,6 @@ def create_application() -> FastAPI:
 
     application.include_router(auth_router)
     application.include_router(flights_router)
-    application.include_router(favorites_router)
 
     @application.get("/", tags=["health"])
     def read_root() -> dict[str, str]:
