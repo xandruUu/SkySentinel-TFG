@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { useLiveFlights } from "../../features/flights/useLiveFlights.js";
+import avionMarker from "../../assets/avion.png";
 
 const MADRID_BOUNDS = {
   lamin: 40.0,
@@ -10,6 +11,10 @@ const MADRID_BOUNDS = {
 };
 
 const MADRID_CENTER = [-3.7038, 40.4168];
+
+const AIRCRAFT_SOURCE_ID = "aircraft";
+const AIRCRAFT_LAYER_ID = "aircraft-symbols";
+const AIRCRAFT_IMAGE_ID = "aircraft-marker-image";
 
 function buildRasterStyle() {
   return {
@@ -125,6 +130,9 @@ export default function MapPage() {
   const [search, setSearch] = useState("");
   const [hideGround, setHideGround] = useState(true);
 
+  const [iconLoaded, setIconLoaded] = useState(false);
+  const [layerReady, setLayerReady] = useState(false);
+
   const { data, error, loading, lastUpdatedAt } = useLiveFlights({
     bounds: MADRID_BOUNDS,
     refreshMs: 15000,
@@ -156,14 +164,42 @@ export default function MapPage() {
       }
     };
 
-    map.addControl(new maplibregl.NavigationControl(), "top-right");
+    const onAircraftClick = (event) => {
+      const feature = event.features?.[0];
+      if (!feature) return;
 
-    map.on("load", () => {
-      setMapLoaded(true);
-      setMapError("");
+      const props = feature.properties || {};
+      const coordinates = feature.geometry?.coordinates;
+      if (!coordinates) return;
 
-      if (!map.getSource("aircraft")) {
-        map.addSource("aircraft", {
+      const html = `
+        <div style="min-width:220px;font-family:Arial,sans-serif;">
+          <strong>${props.callsign || props.icao24 || "Aircraft"}</strong><br/>
+          ICAO24: ${props.icao24 || "—"}<br/>
+          País: ${props.origin_country || "—"}<br/>
+          Velocidad: ${props.velocity ?? "—"}<br/>
+          Rumbo: ${props.true_track ?? "—"}<br/>
+          En tierra: ${props.on_ground ? "Sí" : "No"}
+        </div>
+      `;
+
+      new maplibregl.Popup()
+        .setLngLat(coordinates)
+        .setHTML(html)
+        .addTo(map);
+    };
+
+    const onAircraftMouseEnter = () => {
+      map.getCanvas().style.cursor = "pointer";
+    };
+
+    const onAircraftMouseLeave = () => {
+      map.getCanvas().style.cursor = "";
+    };
+
+    const ensureSource = () => {
+      if (!map.getSource(AIRCRAFT_SOURCE_ID)) {
+        map.addSource(AIRCRAFT_SOURCE_ID, {
           type: "geojson",
           data: {
             type: "FeatureCollection",
@@ -171,53 +207,77 @@ export default function MapPage() {
           },
         });
       }
+    };
 
-      if (!map.getLayer("aircraft-circles")) {
-        map.addLayer({
-          id: "aircraft-circles",
-          type: "circle",
-          source: "aircraft",
-          paint: {
-            "circle-radius": 6,
-            "circle-color": "#2563eb",
-            "circle-stroke-width": 2,
-            "circle-stroke-color": "#ffffff",
-          },
-        });
+    const ensureLayer = () => {
+      if (map.getLayer(AIRCRAFT_LAYER_ID)) {
+        setLayerReady(true);
+        return;
       }
 
-      map.on("click", "aircraft-circles", (event) => {
-        const feature = event.features?.[0];
-        if (!feature) return;
-
-        const props = feature.properties || {};
-        const coordinates = feature.geometry?.coordinates;
-        if (!coordinates) return;
-
-        const html = `
-          <div style="min-width:220px;font-family:Arial,sans-serif;">
-            <strong>${props.callsign || props.icao24 || "Aircraft"}</strong><br/>
-            ICAO24: ${props.icao24 || "—"}<br/>
-            País: ${props.origin_country || "—"}<br/>
-            Velocidad: ${props.velocity ?? "—"}<br/>
-            Rumbo: ${props.true_track ?? "—"}<br/>
-            En tierra: ${props.on_ground ? "Sí" : "No"}
-          </div>
-        `;
-
-        new maplibregl.Popup()
-          .setLngLat(coordinates)
-          .setHTML(html)
-          .addTo(map);
+      map.addLayer({
+        id: AIRCRAFT_LAYER_ID,
+        type: "symbol",
+        source: AIRCRAFT_SOURCE_ID,
+        layout: {
+          "icon-image": AIRCRAFT_IMAGE_ID,
+          "icon-size": 0.07,
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "icon-anchor": "center",
+          "icon-rotate": ["coalesce", ["get", "true_track"], 0],
+          "icon-rotation-alignment": "map",
+        },
       });
 
-      map.on("mouseenter", "aircraft-circles", () => {
-        map.getCanvas().style.cursor = "pointer";
-      });
+      map.on("click", AIRCRAFT_LAYER_ID, onAircraftClick);
+      map.on("mouseenter", AIRCRAFT_LAYER_ID, onAircraftMouseEnter);
+      map.on("mouseleave", AIRCRAFT_LAYER_ID, onAircraftMouseLeave);
 
-      map.on("mouseleave", "aircraft-circles", () => {
-        map.getCanvas().style.cursor = "";
-      });
+      setLayerReady(true);
+    };
+
+    const loadAircraftIcon = () => {
+      ensureSource();
+
+      if (map.hasImage(AIRCRAFT_IMAGE_ID)) {
+        setIconLoaded(true);
+        ensureLayer();
+        return;
+      }
+
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+
+      image.onload = () => {
+        try {
+          if (!map.hasImage(AIRCRAFT_IMAGE_ID)) {
+            map.addImage(AIRCRAFT_IMAGE_ID, image);
+          }
+
+          setIconLoaded(true);
+          ensureLayer();
+        } catch (iconError) {
+          console.error("Error registrando icono:", iconError);
+          setMapError("No se pudo registrar el icono del avión.");
+        }
+      };
+
+      image.onerror = () => {
+        console.error("No se pudo cargar avion.png");
+        setMapError("No se pudo cargar avion.png");
+      };
+
+      image.src = avionMarker;
+    };
+
+    map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+    map.on("load", () => {
+      setMapLoaded(true);
+      setMapError("");
+
+      loadAircraftIcon();
 
       requestAnimationFrame(doResize);
       setTimeout(doResize, 100);
@@ -225,8 +285,7 @@ export default function MapPage() {
     });
 
     map.on("error", (event) => {
-      const message =
-        event?.error?.message || "Error cargando el mapa base.";
+      const message = event?.error?.message || "Error cargando el mapa base.";
       setMapError(message);
     });
 
@@ -236,6 +295,13 @@ export default function MapPage() {
 
     return () => {
       window.removeEventListener("resize", doResize);
+
+      if (map.getLayer(AIRCRAFT_LAYER_ID)) {
+        map.off("click", AIRCRAFT_LAYER_ID, onAircraftClick);
+        map.off("mouseenter", AIRCRAFT_LAYER_ID, onAircraftMouseEnter);
+        map.off("mouseleave", AIRCRAFT_LAYER_ID, onAircraftMouseLeave);
+      }
+
       map.remove();
       mapRef.current = null;
     };
@@ -245,7 +311,7 @@ export default function MapPage() {
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
 
-    const source = map.getSource("aircraft");
+    const source = map.getSource(AIRCRAFT_SOURCE_ID);
     if (!source) return;
 
     source.setData(geojson);
@@ -298,6 +364,8 @@ export default function MapPage() {
 
         <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-xs text-slate-700 ring-1 ring-slate-200">
           <div><strong>Mapa cargado:</strong> {mapLoaded ? "sí" : "no"}</div>
+          <div><strong>Icono cargado:</strong> {iconLoaded ? "sí" : "no"}</div>
+          <div><strong>Capa icono:</strong> {layerReady ? "sí" : "no"}</div>
           <div><strong>Error mapa:</strong> {mapError || "ninguno"}</div>
           <div><strong>Error API:</strong> {error || "ninguno"}</div>
           <div><strong>Loading:</strong> {loading ? "sí" : "no"}</div>
@@ -309,7 +377,7 @@ export default function MapPage() {
 
       <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2">
         <div className="rounded-2xl bg-white/85 px-4 py-2 text-xs text-slate-600 shadow ring-1 ring-slate-200">
-          Diagnóstico mapa · Madrid fijo · círculos sin etiquetas
+          Diagnóstico mapa · Madrid fijo · icono avión con rotación
         </div>
       </div>
     </div>
