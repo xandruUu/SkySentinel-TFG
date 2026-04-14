@@ -107,12 +107,12 @@ function formatTrack(track) {
 
 function buildPopupHtml(aircraft) {
   return `
-    <div style="min-width:250px;max-width:300px;font-family:Arial,sans-serif;color:#0f172a;">
-      <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #e2e8f0;">
-        <div style="font-size:16px;font-weight:800;color:#1e3a8a;">
+    <div style="min-width:260px;max-width:310px;font-family:Inter,Arial,sans-serif;color:#0f172a;">
+      <div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #e2e8f0;">
+        <div style="font-size:17px;font-weight:800;color:#1e3a8a;line-height:1.2;">
           ${aircraft.callsign || "Sin callsign"}
         </div>
-        <div style="font-size:12px;color:#64748b;margin-top:2px;">
+        <div style="font-size:12px;color:#64748b;margin-top:4px;">
           ICAO24 · ${aircraft.icao24 || "—"}
         </div>
       </div>
@@ -259,7 +259,7 @@ export default function MapPage() {
       const popup = new maplibregl.Popup({
         closeButton: true,
         closeOnClick: false,
-        offset: 18,
+        offset: 20,
         maxWidth: "320px",
       })
         .setLngLat(coordinates)
@@ -275,7 +275,8 @@ export default function MapPage() {
 
       map.easeTo({
         center: coordinates,
-        duration: 350,
+        duration: 450,
+        zoom: Math.max(map.getZoom(), 8),
         essential: true,
       });
     };
@@ -309,9 +310,17 @@ export default function MapPage() {
           type: "circle",
           source: SELECTED_SOURCE_ID,
           paint: {
-            "circle-radius": 16,
+            "circle-radius": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              6, 10,
+              8, 13,
+              10, 16,
+              12, 20,
+            ],
             "circle-color": "#f97316",
-            "circle-opacity": 0.22,
+            "circle-opacity": 0.18,
             "circle-stroke-color": "#ea580c",
             "circle-stroke-width": 2,
           },
@@ -323,7 +332,15 @@ export default function MapPage() {
           source: AIRCRAFT_SOURCE_ID,
           layout: {
             "icon-image": AIRCRAFT_IMAGE_ID,
-            "icon-size": 0.055,
+            "icon-size": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              6, 0.04,
+              8, 0.05,
+              10, 0.06,
+              12, 0.075,
+            ],
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
             "icon-anchor": "center",
@@ -439,21 +456,19 @@ export default function MapPage() {
         </div>
 
         <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-xs text-slate-700 ring-1 ring-slate-200">
-          <div><strong>Mapa cargado:</strong> {mapLoaded ? "sí" : "no"}</div>
-          <div><strong>Icono cargado:</strong> {iconLoaded ? "sí" : "no"}</div>
           <div><strong>Error mapa:</strong> {mapError || "ninguno"}</div>
           <div><strong>Error API:</strong> {error || "ninguno"}</div>
           <div><strong>Loading:</strong> {loading ? "sí" : "no"}</div>
           <div><strong>Última actualización:</strong> {formatTime(lastUpdatedAt)}</div>
-          <div><strong>Estados recibidos:</strong> {rawStates.length}</div>
-          <div><strong>Puntos pintados:</strong> {visibleAircraftCount}</div>
+          <div><strong>Aviones visibles:</strong> {visibleAircraftCount}</div>
           <div><strong>Seleccionado:</strong> {selectedId || "ninguno"}</div>
+          <div><strong>Icono:</strong> {iconLoaded ? "cargado" : "pendiente"}</div>
         </div>
       </div>
 
       <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2">
         <div className="rounded-2xl bg-white/85 px-4 py-2 text-xs text-slate-600 shadow ring-1 ring-slate-200">
-          Diagnóstico mapa · popup limpio · halo estable
+          Mapa Madrid · icono dinámico · selección activa
         </div>
       </div>
     </div>
