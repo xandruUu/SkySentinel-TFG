@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { useLiveFlights } from "../../features/flights/useLiveFlights.js";
-import avionMarker from "../../assets/avion.png";
+import avionMarker from "../../assets/avion1.png";
 
 const MADRID_BOUNDS = {
   lamin: 40.0,
@@ -107,46 +107,28 @@ function formatTrack(track) {
 
 function buildPopupHtml(aircraft) {
   return `
-    <div style="min-width:260px;max-width:310px;font-family:Inter,Arial,sans-serif;color:#0f172a;">
-      <div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #e2e8f0;">
-        <div style="font-size:17px;font-weight:800;color:#1e3a8a;line-height:1.2;">
-          ${aircraft.callsign || "Sin callsign"}
-        </div>
-        <div style="font-size:12px;color:#64748b;margin-top:4px;">
-          ICAO24 · ${aircraft.icao24 || "—"}
-        </div>
+    <div style="
+      min-width:180px;
+      font-family:Inter,Arial,sans-serif;
+      text-align:center;
+      padding:6px 4px;
+    ">
+      <div style="
+        font-size:22px;
+        font-weight:900;
+        color:#2563eb;
+        letter-spacing:1px;
+      ">
+        ${aircraft.callsign || aircraft.icao24 || "—"}
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;font-size:13px;">
-        <div>
-          <div style="font-weight:700;color:#334155;">País</div>
-          <div>${aircraft.origin_country || "—"}</div>
-        </div>
-
-        <div>
-          <div style="font-weight:700;color:#334155;">Estado</div>
-          <div>${aircraft.on_ground ? "En tierra" : "En vuelo"}</div>
-        </div>
-
-        <div>
-          <div style="font-weight:700;color:#334155;">Velocidad</div>
-          <div>${formatSpeed(aircraft.velocity)}</div>
-        </div>
-
-        <div>
-          <div style="font-weight:700;color:#334155;">Rumbo</div>
-          <div>${formatTrack(aircraft.true_track)}</div>
-        </div>
-
-        <div>
-          <div style="font-weight:700;color:#334155;">Altitud geo</div>
-          <div>${formatAltitude(aircraft.geo_altitude)}</div>
-        </div>
-
-        <div>
-          <div style="font-weight:700;color:#334155;">Altitud baro</div>
-          <div>${formatAltitude(aircraft.baro_altitude)}</div>
-        </div>
+      <div style="
+        margin-top:4px;
+        font-size:13px;
+        color:#64748b;
+        font-weight:600;
+      ">
+        ${aircraft.model || "Modelo desconocido"}
       </div>
     </div>
   `;
@@ -191,6 +173,70 @@ function emptyFeatureCollection() {
   };
 }
 
+function SelectionCard({ aircraft, onClose }) {
+  if (!aircraft) return null;
+
+  return (
+    <div className="absolute bottom-4 right-4 z-20 w-[340px] max-w-[calc(100vw-2rem)] rounded-3xl bg-white/95 p-4 shadow-2xl ring-1 ring-slate-200 backdrop-blur">
+      <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+        <div>
+          <h3 className="text-lg font-extrabold text-primary">
+            {aircraft.callsign || "Sin callsign"}
+          </h3>
+          <p className="mt-1 text-xs text-slate-500">ICAO24 · {aircraft.icao24 || "—"}</p>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="rounded-2xl px-3 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50"
+        >
+          Cerrar
+        </button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+        <div>
+          <p className="font-bold text-slate-700">País</p>
+          <p className="text-slate-900">{aircraft.origin_country || "—"}</p>
+        </div>
+
+        <div>
+          <p className="font-bold text-slate-700">Estado</p>
+          <p className="text-slate-900">{aircraft.on_ground ? "En tierra" : "En vuelo"}</p>
+        </div>
+
+        <div>
+          <p className="font-bold text-slate-700">Velocidad</p>
+          <p className="text-slate-900">{formatSpeed(aircraft.velocity)}</p>
+        </div>
+
+        <div>
+          <p className="font-bold text-slate-700">Rumbo</p>
+          <p className="text-slate-900">{formatTrack(aircraft.true_track)}</p>
+        </div>
+
+        <div>
+          <p className="font-bold text-slate-700">Altitud geo</p>
+          <p className="text-slate-900">{formatAltitude(aircraft.geo_altitude)}</p>
+        </div>
+
+        <div>
+          <p className="font-bold text-slate-700">Altitud baro</p>
+          <p className="text-slate-900">{formatAltitude(aircraft.baro_altitude)}</p>
+        </div>
+
+        <div className="col-span-2">
+          <p className="font-bold text-slate-700">Posición</p>
+          <p className="text-slate-900">
+            {typeof aircraft.latitude === "number" ? aircraft.latitude.toFixed(4) : "—"},{" "}
+            {typeof aircraft.longitude === "number" ? aircraft.longitude.toFixed(4) : "—"}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MapPage() {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
@@ -226,6 +272,8 @@ export default function MapPage() {
       ? { type: "FeatureCollection", features: [selectedFeature] }
       : emptyFeatureCollection();
   }, [geojson, selectedId]);
+
+  const selectedAircraft = selectedFeatureCollection.features[0]?.properties || null;
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -268,7 +316,6 @@ export default function MapPage() {
 
       popup.on("close", () => {
         popupRef.current = null;
-        setSelectedId(null);
       });
 
       popupRef.current = popup;
@@ -466,9 +513,18 @@ export default function MapPage() {
         </div>
       </div>
 
+      <SelectionCard
+        aircraft={selectedAircraft}
+        onClose={() => {
+          setSelectedId(null);
+          popupRef.current?.remove();
+          popupRef.current = null;
+        }}
+      />
+
       <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2">
         <div className="rounded-2xl bg-white/85 px-4 py-2 text-xs text-slate-600 shadow ring-1 ring-slate-200">
-          Mapa Madrid · icono dinámico · selección activa
+          Mapa Madrid · tarjeta selección activa
         </div>
       </div>
     </div>
