@@ -149,15 +149,19 @@ function toFeatureCollection(states, filters) {
     maxSpeed,
   } = filters;
 
-  const q = String(query || "").trim().toLowerCase();
+  const q = String(query || "")
+    .trim()
+    .toLowerCase();
 
   const parsedMinAltitude = Number(minAltitude);
   const parsedMaxAltitude = Number(maxAltitude);
   const parsedMinSpeed = Number(minSpeed);
   const parsedMaxSpeed = Number(maxSpeed);
 
-  const hasMinAltitude = Number.isFinite(parsedMinAltitude) && minAltitude !== "";
-  const hasMaxAltitude = Number.isFinite(parsedMaxAltitude) && maxAltitude !== "";
+  const hasMinAltitude =
+    Number.isFinite(parsedMinAltitude) && minAltitude !== "";
+  const hasMaxAltitude =
+    Number.isFinite(parsedMaxAltitude) && maxAltitude !== "";
   const hasMinSpeed = Number.isFinite(parsedMinSpeed) && minSpeed !== "";
   const hasMaxSpeed = Number.isFinite(parsedMaxSpeed) && maxSpeed !== "";
 
@@ -221,61 +225,112 @@ function emptyFeatureCollection() {
 function SelectionCard({ aircraft, onClose }) {
   if (!aircraft) return null;
 
+  const latitudeText =
+    typeof aircraft.latitude === "number" ? aircraft.latitude.toFixed(4) : "—";
+
+  const longitudeText =
+    typeof aircraft.longitude === "number"
+      ? aircraft.longitude.toFixed(4)
+      : "—";
+
   return (
-    <div className="absolute bottom-4 right-4 z-20 w-[340px] max-w-[calc(100vw-2rem)] rounded-3xl bg-white/95 p-4 shadow-2xl ring-1 ring-slate-200 backdrop-blur">
-      <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
-        <div>
-          <h3 className="text-lg font-extrabold text-primary">
-            {aircraft.callsign || "Sin callsign"}
-          </h3>
-          <p className="mt-1 text-xs text-slate-500">ICAO24 · {aircraft.icao24 || "—"}</p>
+    <div
+      className="
+        absolute z-20
+        left-3 right-3 bottom-20
+        md:left-auto md:right-4 md:bottom-4 md:w-[360px] md:max-w-[calc(100vw-2rem)]
+      "
+    >
+      <div
+        className="
+          max-h-[46dvh] overflow-y-auto
+          rounded-3xl bg-white/95 p-4 shadow-2xl ring-1 ring-slate-200 backdrop-blur
+          md:max-h-none
+        "
+      >
+        <div className="mb-3 flex justify-center md:hidden">
+          <div className="h-1.5 w-12 rounded-full bg-slate-300" />
         </div>
 
-        <button
-          onClick={onClose}
-          className="rounded-2xl px-3 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50"
-        >
-          Cerrar
-        </button>
-      </div>
+        <div className="mb-3 flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+          <div className="min-w-0">
+            <h3 className="truncate text-lg font-extrabold text-primary">
+              {aircraft.callsign || "Sin callsign"}
+            </h3>
+            <p className="mt-1 truncate text-xs text-slate-500">
+              ICAO24 · {aircraft.icao24 || "—"}
+            </p>
+            <p className="mt-1 truncate text-xs text-slate-500">
+              Modelo · {aircraft.model || "Desconocido"}
+            </p>
+          </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-        <div>
-          <p className="font-bold text-slate-700">País</p>
-          <p className="text-slate-900">{aircraft.origin_country || "—"}</p>
+          <button
+            onClick={onClose}
+            className="shrink-0 rounded-2xl px-3 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50"
+          >
+            Cerrar
+          </button>
         </div>
 
-        <div>
-          <p className="font-bold text-slate-700">Estado</p>
-          <p className="text-slate-900">{aircraft.on_ground ? "En tierra" : "En vuelo"}</p>
-        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+          <div>
+            <p className="font-bold text-slate-700">País</p>
+            <p className="break-words text-slate-900">
+              {aircraft.origin_country || "—"}
+            </p>
+          </div>
 
-        <div>
-          <p className="font-bold text-slate-700">Velocidad</p>
-          <p className="text-slate-900">{formatSpeed(aircraft.velocity)}</p>
-        </div>
+          <div>
+            <p className="font-bold text-slate-700">Estado</p>
+            <p className="text-slate-900">
+              {aircraft.on_ground ? "En tierra" : "En vuelo"}
+            </p>
+          </div>
 
-        <div>
-          <p className="font-bold text-slate-700">Rumbo</p>
-          <p className="text-slate-900">{formatTrack(aircraft.true_track)}</p>
-        </div>
+          <div>
+            <p className="font-bold text-slate-700">Velocidad</p>
+            <p className="text-slate-900">{formatSpeed(aircraft.velocity)}</p>
+          </div>
 
-        <div>
-          <p className="font-bold text-slate-700">Altitud geo</p>
-          <p className="text-slate-900">{formatAltitude(aircraft.geo_altitude)}</p>
-        </div>
+          <div>
+            <p className="font-bold text-slate-700">Rumbo</p>
+            <p className="text-slate-900">{formatTrack(aircraft.true_track)}</p>
+          </div>
 
-        <div>
-          <p className="font-bold text-slate-700">Altitud baro</p>
-          <p className="text-slate-900">{formatAltitude(aircraft.baro_altitude)}</p>
-        </div>
+          <div>
+            <p className="font-bold text-slate-700">Altitud geo</p>
+            <p className="text-slate-900">
+              {formatAltitude(aircraft.geo_altitude)}
+            </p>
+          </div>
 
-        <div className="col-span-2">
-          <p className="font-bold text-slate-700">Posición</p>
-          <p className="text-slate-900">
-            {typeof aircraft.latitude === "number" ? aircraft.latitude.toFixed(4) : "—"},{" "}
-            {typeof aircraft.longitude === "number" ? aircraft.longitude.toFixed(4) : "—"}
-          </p>
+          <div>
+            <p className="font-bold text-slate-700">Altitud baro</p>
+            <p className="text-slate-900">
+              {formatAltitude(aircraft.baro_altitude)}
+            </p>
+          </div>
+
+          <div>
+            <p className="font-bold text-slate-700">Latitud</p>
+            <p className="text-slate-900">{latitudeText}</p>
+          </div>
+
+          <div>
+            <p className="font-bold text-slate-700">Longitud</p>
+            <p className="text-slate-900">{longitudeText}</p>
+          </div>
+
+          <div className="col-span-2">
+            <p className="font-bold text-slate-700">Resumen</p>
+            <p className="text-slate-900">
+              {aircraft.callsign || aircraft.icao24 || "Aeronave"} ·{" "}
+              {aircraft.on_ground ? "en tierra" : "en vuelo"} ·{" "}
+              {formatSpeed(aircraft.velocity)} · rumbo{" "}
+              {formatTrack(aircraft.true_track)}
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -299,7 +354,8 @@ function FiltersPanel({
       <h2 className="text-lg font-semibold text-slate-900">Filtros</h2>
 
       <div className="mt-1 text-sm text-slate-500">
-        {data?.aircraft_count ?? 0} aviones · créditos {data?.credits_remaining ?? "—"} · refresh 15s
+        {data?.aircraft_count ?? 0} aviones · créditos{" "}
+        {data?.credits_remaining ?? "—"} · refresh 15s
       </div>
 
       <div className="mt-4 space-y-4">
@@ -340,7 +396,10 @@ function FiltersPanel({
               type="number"
               value={filters.minAltitude}
               onChange={(event) =>
-                setFilters((prev) => ({ ...prev, minAltitude: event.target.value }))
+                setFilters((prev) => ({
+                  ...prev,
+                  minAltitude: event.target.value,
+                }))
               }
               placeholder="sin mínimo"
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
@@ -355,7 +414,10 @@ function FiltersPanel({
               type="number"
               value={filters.maxAltitude}
               onChange={(event) =>
-                setFilters((prev) => ({ ...prev, maxAltitude: event.target.value }))
+                setFilters((prev) => ({
+                  ...prev,
+                  maxAltitude: event.target.value,
+                }))
               }
               placeholder="sin máximo"
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
@@ -372,7 +434,10 @@ function FiltersPanel({
               type="number"
               value={filters.minSpeed}
               onChange={(event) =>
-                setFilters((prev) => ({ ...prev, minSpeed: event.target.value }))
+                setFilters((prev) => ({
+                  ...prev,
+                  minSpeed: event.target.value,
+                }))
               }
               placeholder="sin mínimo"
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
@@ -387,7 +452,10 @@ function FiltersPanel({
               type="number"
               value={filters.maxSpeed}
               onChange={(event) =>
-                setFilters((prev) => ({ ...prev, maxSpeed: event.target.value }))
+                setFilters((prev) => ({
+                  ...prev,
+                  maxSpeed: event.target.value,
+                }))
               }
               placeholder="sin máximo"
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
@@ -401,7 +469,10 @@ function FiltersPanel({
             type="checkbox"
             checked={filters.hideGround}
             onChange={(event) =>
-              setFilters((prev) => ({ ...prev, hideGround: event.target.checked }))
+              setFilters((prev) => ({
+                ...prev,
+                hideGround: event.target.checked,
+              }))
             }
           />
         </label>
@@ -412,7 +483,10 @@ function FiltersPanel({
             type="checkbox"
             checked={filters.onlyInAir}
             onChange={(event) =>
-              setFilters((prev) => ({ ...prev, onlyInAir: event.target.checked }))
+              setFilters((prev) => ({
+                ...prev,
+                onlyInAir: event.target.checked,
+              }))
             }
           />
         </label>
@@ -423,7 +497,10 @@ function FiltersPanel({
             type="checkbox"
             checked={filters.onlyWithCallsign}
             onChange={(event) =>
-              setFilters((prev) => ({ ...prev, onlyWithCallsign: event.target.checked }))
+              setFilters((prev) => ({
+                ...prev,
+                onlyWithCallsign: event.target.checked,
+              }))
             }
           />
         </label>
@@ -450,13 +527,27 @@ function FiltersPanel({
       </div>
 
       <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-xs text-slate-700 ring-1 ring-slate-200">
-        <div><strong>Error mapa:</strong> {mapError || "ninguno"}</div>
-        <div><strong>Error API:</strong> {error || "ninguno"}</div>
-        <div><strong>Loading:</strong> {loading ? "sí" : "no"}</div>
-        <div><strong>Última actualización:</strong> {formatTime(lastUpdatedAt)}</div>
-        <div><strong>Aviones visibles:</strong> {visibleAircraftCount}</div>
-        <div><strong>Seleccionado:</strong> {selectedId || "ninguno"}</div>
-        <div><strong>Icono:</strong> {iconLoaded ? "cargado" : "pendiente"}</div>
+        <div>
+          <strong>Error mapa:</strong> {mapError || "ninguno"}
+        </div>
+        <div>
+          <strong>Error API:</strong> {error || "ninguno"}
+        </div>
+        <div>
+          <strong>Loading:</strong> {loading ? "sí" : "no"}
+        </div>
+        <div>
+          <strong>Última actualización:</strong> {formatTime(lastUpdatedAt)}
+        </div>
+        <div>
+          <strong>Aviones visibles:</strong> {visibleAircraftCount}
+        </div>
+        <div>
+          <strong>Seleccionado:</strong> {selectedId || "ninguno"}
+        </div>
+        <div>
+          <strong>Icono:</strong> {iconLoaded ? "cargado" : "pendiente"}
+        </div>
       </div>
     </div>
   );
@@ -501,7 +592,7 @@ export default function MapPage() {
     if (!selectedId) return emptyFeatureCollection();
 
     const selectedFeature = geojson.features.find(
-      (feature) => feature.properties?.icao24 === selectedId
+      (feature) => feature.properties?.icao24 === selectedId,
     );
 
     return selectedFeature
@@ -509,7 +600,8 @@ export default function MapPage() {
       : emptyFeatureCollection();
   }, [geojson, selectedId]);
 
-  const selectedAircraft = selectedFeatureCollection.features[0]?.properties || null;
+  const selectedAircraft =
+    selectedFeatureCollection.features[0]?.properties || null;
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -597,10 +689,14 @@ export default function MapPage() {
               "interpolate",
               ["linear"],
               ["zoom"],
-              6, 10,
-              8, 13,
-              10, 16,
-              12, 20,
+              6,
+              10,
+              8,
+              13,
+              10,
+              16,
+              12,
+              20,
             ],
             "circle-color": "#f97316",
             "circle-opacity": 0.18,
@@ -619,10 +715,14 @@ export default function MapPage() {
               "interpolate",
               ["linear"],
               ["zoom"],
-              6, 0.04,
-              8, 0.05,
-              10, 0.06,
-              12, 0.075,
+              6,
+              0.04,
+              8,
+              0.05,
+              10,
+              0.06,
+              12,
+              0.075,
             ],
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -727,7 +827,7 @@ export default function MapPage() {
       <button
         type="button"
         onClick={() => setFiltersOpen(true)}
-        className="absolute bottom-6 left-4 z-30 rounded-full bg-primary px-4 py-3 text-sm font-bold text-white shadow-xl ring-1 ring-primary/20 md:hidden"
+        className="absolute top-4 left-4 z-30 rounded-full bg-primary px-4 py-3 text-sm font-bold text-white shadow-xl ring-1 ring-primary/20 md:hidden"
       >
         Filtros
       </button>
