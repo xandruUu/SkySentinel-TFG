@@ -18,6 +18,10 @@ const AIRCRAFT_LAYER_ID = "aircraft-symbols";
 const SELECTED_LAYER_ID = "selected-aircraft-halo";
 const AIRCRAFT_IMAGE_ID = "aircraft-marker-image";
 
+function isMobileViewport() {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
+}
+
 function buildRasterStyle() {
   return {
     version: 8,
@@ -62,6 +66,10 @@ function normalizeState(rawState) {
       baro_altitude: rawState.baro_altitude ?? null,
       geo_altitude: rawState.geo_altitude ?? null,
       model: rawState.model ?? null,
+      last_contact: rawState.last_contact ?? null,
+      spi: rawState.spi ?? null,
+      squawk: rawState.squawk ?? null,
+      position_source: rawState.position_source ?? null,
     };
   }
 
@@ -84,6 +92,10 @@ function normalizeState(rawState) {
     baro_altitude: rawState[7] ?? null,
     geo_altitude: rawState[13] ?? null,
     model: null,
+    last_contact: rawState[4] ?? null,
+    spi: rawState[15] ?? null,
+    squawk: rawState[14] ?? null,
+    position_source: rawState[16] ?? null,
   };
 }
 
@@ -107,19 +119,32 @@ function formatTrack(track) {
   return `${Math.round(track)}°`;
 }
 
+function formatCoord(value) {
+  if (typeof value !== "number") return "—";
+  return value.toFixed(4);
+}
+
+function formatPositionSource(value) {
+  if (value === 0) return "ADS-B";
+  if (value === 1) return "ASTERIX";
+  if (value === 2) return "MLAT";
+  return "—";
+}
+
 function buildPopupHtml(aircraft) {
   return `
     <div style="
-      min-width:180px;
+      min-width:170px;
       font-family:Inter,Arial,sans-serif;
       text-align:center;
-      padding:6px 4px;
+      padding:4px 2px;
     ">
       <div style="
         font-size:22px;
         font-weight:900;
         color:#2563eb;
         letter-spacing:1px;
+        line-height:1.1;
       ">
         ${aircraft.callsign?.trim() || aircraft.icao24 || "—"}
       </div>
@@ -149,19 +174,15 @@ function toFeatureCollection(states, filters) {
     maxSpeed,
   } = filters;
 
-  const q = String(query || "")
-    .trim()
-    .toLowerCase();
+  const q = String(query || "").trim().toLowerCase();
 
   const parsedMinAltitude = Number(minAltitude);
   const parsedMaxAltitude = Number(maxAltitude);
   const parsedMinSpeed = Number(minSpeed);
   const parsedMaxSpeed = Number(maxSpeed);
 
-  const hasMinAltitude =
-    Number.isFinite(parsedMinAltitude) && minAltitude !== "";
-  const hasMaxAltitude =
-    Number.isFinite(parsedMaxAltitude) && maxAltitude !== "";
+  const hasMinAltitude = Number.isFinite(parsedMinAltitude) && minAltitude !== "";
+  const hasMaxAltitude = Number.isFinite(parsedMaxAltitude) && maxAltitude !== "";
   const hasMinSpeed = Number.isFinite(parsedMinSpeed) && minSpeed !== "";
   const hasMaxSpeed = Number.isFinite(parsedMaxSpeed) && maxSpeed !== "";
 
@@ -175,9 +196,7 @@ function toFeatureCollection(states, filters) {
 
       if (country.trim()) {
         const aircraftCountry = (aircraft.origin_country || "").toLowerCase();
-        if (!aircraftCountry.includes(country.trim().toLowerCase())) {
-          return false;
-        }
+        if (!aircraftCountry.includes(country.trim().toLowerCase())) return false;
       }
 
       const altitude = aircraft.geo_altitude ?? aircraft.baro_altitude;
@@ -193,7 +212,8 @@ function toFeatureCollection(states, filters) {
 
       if (q) {
         const haystack =
-          `${aircraft.icao24} ${aircraft.callsign} ${aircraft.origin_country}`.toLowerCase();
+          `${aircraft.icao24} ${aircraft.callsign} ${aircraft.origin_country} ${aircraft.model || ""}`.toLowerCase();
+
         if (!haystack.includes(q)) return false;
       }
 
@@ -222,121 +242,6 @@ function emptyFeatureCollection() {
   };
 }
 
-function SelectionCard({ aircraft, onClose }) {
-  if (!aircraft) return null;
-
-  const latitudeText =
-    typeof aircraft.latitude === "number" ? aircraft.latitude.toFixed(4) : "—";
-
-  const longitudeText =
-    typeof aircraft.longitude === "number"
-      ? aircraft.longitude.toFixed(4)
-      : "—";
-
-  return (
-    <div
-      className="
-        absolute z-20
-        left-3 right-3 bottom-20
-        md:left-auto md:right-4 md:bottom-4 md:w-[360px] md:max-w-[calc(100vw-2rem)]
-      "
-    >
-      <div
-        className="
-          max-h-[46dvh] overflow-y-auto
-          rounded-3xl bg-white/95 p-4 shadow-2xl ring-1 ring-slate-200 backdrop-blur
-          md:max-h-none
-        "
-      >
-        <div className="mb-3 flex justify-center md:hidden">
-          <div className="h-1.5 w-12 rounded-full bg-slate-300" />
-        </div>
-
-        <div className="mb-3 flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
-          <div className="min-w-0">
-            <h3 className="truncate text-lg font-extrabold text-primary">
-              {aircraft.callsign || "Sin callsign"}
-            </h3>
-            <p className="mt-1 truncate text-xs text-slate-500">
-              ICAO24 · {aircraft.icao24 || "—"}
-            </p>
-            <p className="mt-1 truncate text-xs text-slate-500">
-              Modelo · {aircraft.model || "Desconocido"}
-            </p>
-          </div>
-
-          <button
-            onClick={onClose}
-            className="shrink-0 rounded-2xl px-3 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50"
-          >
-            Cerrar
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-          <div>
-            <p className="font-bold text-slate-700">País</p>
-            <p className="break-words text-slate-900">
-              {aircraft.origin_country || "—"}
-            </p>
-          </div>
-
-          <div>
-            <p className="font-bold text-slate-700">Estado</p>
-            <p className="text-slate-900">
-              {aircraft.on_ground ? "En tierra" : "En vuelo"}
-            </p>
-          </div>
-
-          <div>
-            <p className="font-bold text-slate-700">Velocidad</p>
-            <p className="text-slate-900">{formatSpeed(aircraft.velocity)}</p>
-          </div>
-
-          <div>
-            <p className="font-bold text-slate-700">Rumbo</p>
-            <p className="text-slate-900">{formatTrack(aircraft.true_track)}</p>
-          </div>
-
-          <div>
-            <p className="font-bold text-slate-700">Altitud geo</p>
-            <p className="text-slate-900">
-              {formatAltitude(aircraft.geo_altitude)}
-            </p>
-          </div>
-
-          <div>
-            <p className="font-bold text-slate-700">Altitud baro</p>
-            <p className="text-slate-900">
-              {formatAltitude(aircraft.baro_altitude)}
-            </p>
-          </div>
-
-          <div>
-            <p className="font-bold text-slate-700">Latitud</p>
-            <p className="text-slate-900">{latitudeText}</p>
-          </div>
-
-          <div>
-            <p className="font-bold text-slate-700">Longitud</p>
-            <p className="text-slate-900">{longitudeText}</p>
-          </div>
-
-          <div className="col-span-2">
-            <p className="font-bold text-slate-700">Resumen</p>
-            <p className="text-slate-900">
-              {aircraft.callsign || aircraft.icao24 || "Aeronave"} ·{" "}
-              {aircraft.on_ground ? "en tierra" : "en vuelo"} ·{" "}
-              {formatSpeed(aircraft.velocity)} · rumbo{" "}
-              {formatTrack(aircraft.true_track)}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function FiltersPanel({
   filters,
   setFilters,
@@ -354,15 +259,12 @@ function FiltersPanel({
       <h2 className="text-lg font-semibold text-slate-900">Filtros</h2>
 
       <div className="mt-1 text-sm text-slate-500">
-        {data?.aircraft_count ?? 0} aviones · créditos{" "}
-        {data?.credits_remaining ?? "—"} · refresh 15s
+        {data?.aircraft_count ?? 0} aviones · créditos {data?.credits_remaining ?? "—"} · refresh 15s
       </div>
 
       <div className="mt-4 space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-800">
-            Buscar
-          </label>
+          <label className="mb-1 block text-sm font-medium text-slate-800">Buscar</label>
           <input
             value={filters.query}
             onChange={(event) =>
@@ -374,9 +276,7 @@ function FiltersPanel({
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-800">
-            País
-          </label>
+          <label className="mb-1 block text-sm font-medium text-slate-800">País</label>
           <input
             value={filters.country}
             onChange={(event) =>
@@ -389,17 +289,12 @@ function FiltersPanel({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">
-              Altitud mín.
-            </label>
+            <label className="mb-1 block text-sm font-medium text-slate-800">Altitud mín.</label>
             <input
               type="number"
               value={filters.minAltitude}
               onChange={(event) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  minAltitude: event.target.value,
-                }))
+                setFilters((prev) => ({ ...prev, minAltitude: event.target.value }))
               }
               placeholder="sin mínimo"
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
@@ -407,17 +302,12 @@ function FiltersPanel({
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">
-              Altitud máx.
-            </label>
+            <label className="mb-1 block text-sm font-medium text-slate-800">Altitud máx.</label>
             <input
               type="number"
               value={filters.maxAltitude}
               onChange={(event) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  maxAltitude: event.target.value,
-                }))
+                setFilters((prev) => ({ ...prev, maxAltitude: event.target.value }))
               }
               placeholder="sin máximo"
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
@@ -427,17 +317,12 @@ function FiltersPanel({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">
-              Velocidad mín.
-            </label>
+            <label className="mb-1 block text-sm font-medium text-slate-800">Velocidad mín.</label>
             <input
               type="number"
               value={filters.minSpeed}
               onChange={(event) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  minSpeed: event.target.value,
-                }))
+                setFilters((prev) => ({ ...prev, minSpeed: event.target.value }))
               }
               placeholder="sin mínimo"
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
@@ -445,17 +330,12 @@ function FiltersPanel({
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">
-              Velocidad máx.
-            </label>
+            <label className="mb-1 block text-sm font-medium text-slate-800">Velocidad máx.</label>
             <input
               type="number"
               value={filters.maxSpeed}
               onChange={(event) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  maxSpeed: event.target.value,
-                }))
+                setFilters((prev) => ({ ...prev, maxSpeed: event.target.value }))
               }
               placeholder="sin máximo"
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
@@ -469,10 +349,7 @@ function FiltersPanel({
             type="checkbox"
             checked={filters.hideGround}
             onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                hideGround: event.target.checked,
-              }))
+              setFilters((prev) => ({ ...prev, hideGround: event.target.checked }))
             }
           />
         </label>
@@ -483,10 +360,7 @@ function FiltersPanel({
             type="checkbox"
             checked={filters.onlyInAir}
             onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                onlyInAir: event.target.checked,
-              }))
+              setFilters((prev) => ({ ...prev, onlyInAir: event.target.checked }))
             }
           />
         </label>
@@ -497,10 +371,7 @@ function FiltersPanel({
             type="checkbox"
             checked={filters.onlyWithCallsign}
             onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                onlyWithCallsign: event.target.checked,
-              }))
+              setFilters((prev) => ({ ...prev, onlyWithCallsign: event.target.checked }))
             }
           />
         </label>
@@ -527,27 +398,154 @@ function FiltersPanel({
       </div>
 
       <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-xs text-slate-700 ring-1 ring-slate-200">
-        <div>
-          <strong>Error mapa:</strong> {mapError || "ninguno"}
+        <div><strong>Error mapa:</strong> {mapError || "ninguno"}</div>
+        <div><strong>Error API:</strong> {error || "ninguno"}</div>
+        <div><strong>Loading:</strong> {loading ? "sí" : "no"}</div>
+        <div><strong>Última actualización:</strong> {formatTime(lastUpdatedAt)}</div>
+        <div><strong>Aviones visibles:</strong> {visibleAircraftCount}</div>
+        <div><strong>Seleccionado:</strong> {selectedId || "ninguno"}</div>
+        <div><strong>Icono:</strong> {iconLoaded ? "cargado" : "pendiente"}</div>
+      </div>
+    </div>
+  );
+}
+
+function SelectionCard({ aircraft, expanded, setExpanded, onClose }) {
+  if (!aircraft) return null;
+
+  const compactSummary = `${aircraft.on_ground ? "En tierra" : "En vuelo"} · ${formatSpeed(
+    aircraft.velocity
+  )} · ${formatAltitude(aircraft.geo_altitude ?? aircraft.baro_altitude)}`;
+
+  return (
+    <div
+      className="
+        absolute z-20
+        left-3 right-3 bottom-4
+        md:left-auto md:right-4 md:bottom-4 md:w-[380px] md:max-w-[calc(100vw-2rem)]
+      "
+    >
+      <div
+        className={`
+          rounded-3xl bg-white/95 p-4 shadow-2xl ring-1 ring-slate-200 backdrop-blur
+          ${expanded ? "max-h-[52dvh] overflow-y-auto" : "overflow-hidden"}
+          md:max-h-none
+        `}
+      >
+        <div className="mb-3 flex justify-center md:hidden">
+          <div className="h-1.5 w-12 rounded-full bg-slate-300" />
         </div>
-        <div>
-          <strong>Error API:</strong> {error || "ninguno"}
+
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+          <div className="min-w-0">
+            <h3 className="truncate text-lg font-extrabold text-primary">
+              {aircraft.callsign || "Sin callsign"}
+            </h3>
+            <p className="mt-1 truncate text-xs text-slate-500">
+              ICAO24 · {aircraft.icao24 || "—"}
+            </p>
+            <p className="mt-1 truncate text-xs text-slate-500">
+              Modelo · {aircraft.model || "Desconocido"}
+            </p>
+          </div>
+
+          <div className="flex shrink-0 gap-2">
+            <button
+              onClick={() => setExpanded((prev) => !prev)}
+              className="rounded-2xl px-3 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50 md:hidden"
+            >
+              {expanded ? "Ver menos" : "Ver más"}
+            </button>
+
+            <button
+              onClick={onClose}
+              className="rounded-2xl px-3 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 transition hover:bg-slate-50"
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
-        <div>
-          <strong>Loading:</strong> {loading ? "sí" : "no"}
-        </div>
-        <div>
-          <strong>Última actualización:</strong> {formatTime(lastUpdatedAt)}
-        </div>
-        <div>
-          <strong>Aviones visibles:</strong> {visibleAircraftCount}
-        </div>
-        <div>
-          <strong>Seleccionado:</strong> {selectedId || "ninguno"}
-        </div>
-        <div>
-          <strong>Icono:</strong> {iconLoaded ? "cargado" : "pendiente"}
-        </div>
+
+        {!expanded ? (
+          <div className="pt-3">
+            <p className="text-sm font-semibold text-slate-800">{compactSummary}</p>
+            <p className="mt-2 text-xs text-slate-500">
+              {formatCoord(aircraft.latitude)}, {formatCoord(aircraft.longitude)}
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+            <div>
+              <p className="font-bold text-slate-700">País</p>
+              <p className="break-words text-slate-900">{aircraft.origin_country || "—"}</p>
+            </div>
+
+            <div>
+              <p className="font-bold text-slate-700">Estado</p>
+              <p className="text-slate-900">{aircraft.on_ground ? "En tierra" : "En vuelo"}</p>
+            </div>
+
+            <div>
+              <p className="font-bold text-slate-700">Velocidad</p>
+              <p className="text-slate-900">{formatSpeed(aircraft.velocity)}</p>
+            </div>
+
+            <div>
+              <p className="font-bold text-slate-700">Rumbo</p>
+              <p className="text-slate-900">{formatTrack(aircraft.true_track)}</p>
+            </div>
+
+            <div>
+              <p className="font-bold text-slate-700">Altitud geo</p>
+              <p className="text-slate-900">{formatAltitude(aircraft.geo_altitude)}</p>
+            </div>
+
+            <div>
+              <p className="font-bold text-slate-700">Altitud baro</p>
+              <p className="text-slate-900">{formatAltitude(aircraft.baro_altitude)}</p>
+            </div>
+
+            <div>
+              <p className="font-bold text-slate-700">Latitud</p>
+              <p className="text-slate-900">{formatCoord(aircraft.latitude)}</p>
+            </div>
+
+            <div>
+              <p className="font-bold text-slate-700">Longitud</p>
+              <p className="text-slate-900">{formatCoord(aircraft.longitude)}</p>
+            </div>
+
+            <div>
+              <p className="font-bold text-slate-700">Squawk</p>
+              <p className="text-slate-900">{aircraft.squawk || "—"}</p>
+            </div>
+
+            <div>
+              <p className="font-bold text-slate-700">SPI</p>
+              <p className="text-slate-900">{aircraft.spi ? "Sí" : "No"}</p>
+            </div>
+
+            <div>
+              <p className="font-bold text-slate-700">Fuente posición</p>
+              <p className="text-slate-900">{formatPositionSource(aircraft.position_source)}</p>
+            </div>
+
+            <div>
+              <p className="font-bold text-slate-700">Último contacto</p>
+              <p className="text-slate-900">{formatTime(aircraft.last_contact)}</p>
+            </div>
+
+            <div className="col-span-2">
+              <p className="font-bold text-slate-700">Resumen</p>
+              <p className="text-slate-900">
+                {aircraft.callsign || aircraft.icao24 || "Aeronave"} ·{" "}
+                {aircraft.on_ground ? "en tierra" : "en vuelo"} ·{" "}
+                {formatSpeed(aircraft.velocity)} · rumbo {formatTrack(aircraft.true_track)} ·
+                altitud {formatAltitude(aircraft.geo_altitude ?? aircraft.baro_altitude)}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -563,6 +561,7 @@ export default function MapPage() {
   const [mapError, setMapError] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [cardExpanded, setCardExpanded] = useState(!isMobileViewport());
 
   const [filters, setFilters] = useState({
     query: "",
@@ -592,7 +591,7 @@ export default function MapPage() {
     if (!selectedId) return emptyFeatureCollection();
 
     const selectedFeature = geojson.features.find(
-      (feature) => feature.properties?.icao24 === selectedId,
+      (feature) => feature.properties?.icao24 === selectedId
     );
 
     return selectedFeature
@@ -600,8 +599,13 @@ export default function MapPage() {
       : emptyFeatureCollection();
   }, [geojson, selectedId]);
 
-  const selectedAircraft =
-    selectedFeatureCollection.features[0]?.properties || null;
+  const selectedAircraft = selectedFeatureCollection.features[0]?.properties || null;
+
+  useEffect(() => {
+    if (selectedAircraft) {
+      setCardExpanded(!isMobileViewport());
+    }
+  }, [selectedAircraft]);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -621,6 +625,20 @@ export default function MapPage() {
       popupRef.current = null;
     };
 
+    const focusAircraft = (coordinates) => {
+      const mobile = isMobileViewport();
+
+      map.easeTo({
+        center: coordinates,
+        zoom: Math.max(map.getZoom(), mobile ? 8 : 8.2),
+        duration: 450,
+        essential: true,
+        padding: mobile
+          ? { top: 90, right: 20, bottom: 250, left: 20 }
+          : { top: 40, right: 430, bottom: 40, left: 40 },
+      });
+    };
+
     const onAircraftClick = (event) => {
       const feature = event.features?.[0];
       if (!feature) return;
@@ -630,30 +648,21 @@ export default function MapPage() {
       if (!coordinates) return;
 
       setSelectedId(aircraft.icao24 || null);
+      setCardExpanded(!isMobileViewport());
       closePopup();
 
       const popup = new maplibregl.Popup({
-        closeButton: true,
+        closeButton: false,
         closeOnClick: false,
-        offset: 20,
-        maxWidth: "320px",
+        offset: 18,
+        maxWidth: "300px",
       })
         .setLngLat(coordinates)
         .setHTML(buildPopupHtml(aircraft))
         .addTo(map);
 
-      popup.on("close", () => {
-        popupRef.current = null;
-      });
-
       popupRef.current = popup;
-
-      map.easeTo({
-        center: coordinates,
-        duration: 450,
-        zoom: Math.max(map.getZoom(), 8),
-        essential: true,
-      });
+      focusAircraft(coordinates);
     };
 
     map.on("load", () => {
@@ -689,14 +698,10 @@ export default function MapPage() {
               "interpolate",
               ["linear"],
               ["zoom"],
-              6,
-              10,
-              8,
-              13,
-              10,
-              16,
-              12,
-              20,
+              6, 10,
+              8, 13,
+              10, 16,
+              12, 20,
             ],
             "circle-color": "#f97316",
             "circle-opacity": 0.18,
@@ -715,14 +720,10 @@ export default function MapPage() {
               "interpolate",
               ["linear"],
               ["zoom"],
-              6,
-              0.04,
-              8,
-              0.05,
-              10,
-              0.06,
-              12,
-              0.075,
+              6, 0.04,
+              8, 0.05,
+              10, 0.06,
+              12, 0.075,
             ],
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -827,7 +828,7 @@ export default function MapPage() {
       <button
         type="button"
         onClick={() => setFiltersOpen(true)}
-        className="absolute top-4 left-4 z-30 rounded-full bg-primary px-4 py-3 text-sm font-bold text-white shadow-xl ring-1 ring-primary/20 md:hidden"
+        className="absolute left-4 top-4 z-30 rounded-full bg-primary px-4 py-3 text-sm font-bold text-white shadow-xl ring-1 ring-primary/20 md:hidden"
       >
         Filtros
       </button>
@@ -864,18 +865,14 @@ export default function MapPage() {
 
       <SelectionCard
         aircraft={selectedAircraft}
+        expanded={cardExpanded}
+        setExpanded={setCardExpanded}
         onClose={() => {
           setSelectedId(null);
           popupRef.current?.remove();
           popupRef.current = null;
         }}
       />
-
-      <div className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2">
-        <div className="rounded-2xl bg-white/85 px-4 py-2 text-xs text-slate-600 shadow ring-1 ring-slate-200">
-          Mapa Madrid · drawer móvil + panel desktop
-        </div>
-      </div>
     </div>
   );
 }
