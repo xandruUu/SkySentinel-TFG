@@ -33,13 +33,7 @@ function buildRasterStyle() {
         attribution: "© OpenStreetMap contributors",
       },
     },
-    layers: [
-      {
-        id: "osm",
-        type: "raster",
-        source: "osm",
-      },
-    ],
+    layers: [{ id: "osm", type: "raster", source: "osm" }],
   };
 }
 
@@ -47,12 +41,9 @@ function normalizeState(rawState) {
   if (!rawState) return null;
 
   if (!Array.isArray(rawState)) {
-    const longitude = rawState.longitude;
-    const latitude = rawState.latitude;
+    const { longitude, latitude } = rawState;
 
-    if (typeof longitude !== "number" || typeof latitude !== "number") {
-      return null;
-    }
+    if (typeof longitude !== "number" || typeof latitude !== "number") return null;
 
     return {
       icao24: String(rawState.icao24 || "").toLowerCase(),
@@ -76,9 +67,7 @@ function normalizeState(rawState) {
   const longitude = rawState[5];
   const latitude = rawState[6];
 
-  if (typeof longitude !== "number" || typeof latitude !== "number") {
-    return null;
-  }
+  if (typeof longitude !== "number" || typeof latitude !== "number") return null;
 
   return {
     icao24: String(rawState[0] || "").toLowerCase(),
@@ -133,28 +122,12 @@ function formatPositionSource(value) {
 
 function buildPopupHtml(aircraft) {
   return `
-    <div style="
-      min-width:170px;
-      font-family:Inter,Arial,sans-serif;
-      text-align:center;
-      padding:4px 2px;
-    ">
-      <div style="
-        font-size:22px;
-        font-weight:900;
-        color:#2563eb;
-        letter-spacing:1px;
-        line-height:1.1;
-      ">
+    <div style="min-width:170px;font-family:Inter,Arial,sans-serif;text-align:center;padding:4px 2px;">
+      <div style="font-size:22px;font-weight:900;color:#2563eb;letter-spacing:1px;line-height:1.1;">
         ${aircraft.callsign?.trim() || aircraft.icao24 || "—"}
       </div>
 
-      <div style="
-        margin-top:4px;
-        font-size:13px;
-        color:#64748b;
-        font-weight:600;
-      ">
+      <div style="margin-top:4px;font-size:13px;color:#64748b;font-weight:600;">
         ${aircraft.model || "Modelo desconocido"}
       </div>
     </div>
@@ -200,6 +173,7 @@ function toFeatureCollection(states, filters) {
       }
 
       const altitude = aircraft.geo_altitude ?? aircraft.baro_altitude;
+
       if (typeof altitude === "number") {
         if (hasMinAltitude && altitude < parsedMinAltitude) return false;
         if (hasMaxAltitude && altitude > parsedMaxAltitude) return false;
@@ -242,24 +216,13 @@ function emptyFeatureCollection() {
   };
 }
 
-function FiltersPanel({
-  filters,
-  setFilters,
-  data,
-  mapError,
-  error,
-  loading,
-  lastUpdatedAt,
-  visibleAircraftCount,
-  selectedId,
-  iconLoaded,
-}) {
+function FiltersPanel({ filters, setFilters, data, visibleAircraftCount }) {
   return (
     <div className="w-full rounded-3xl bg-white/92 p-4 shadow-xl ring-1 ring-slate-200 backdrop-blur">
       <h2 className="text-lg font-semibold text-slate-900">Filtros</h2>
 
       <div className="mt-1 text-sm text-slate-500">
-        {data?.aircraft_count ?? 0} aviones · créditos {data?.credits_remaining ?? "—"} · refresh 15s
+        {data?.aircraft_count ?? 0} detectados · {visibleAircraftCount} visibles · refresh 15s
       </div>
 
       <div className="mt-4 space-y-4">
@@ -396,16 +359,6 @@ function FiltersPanel({
           Resetear filtros
         </button>
       </div>
-
-      <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-xs text-slate-700 ring-1 ring-slate-200">
-        <div><strong>Error mapa:</strong> {mapError || "ninguno"}</div>
-        <div><strong>Error API:</strong> {error || "ninguno"}</div>
-        <div><strong>Loading:</strong> {loading ? "sí" : "no"}</div>
-        <div><strong>Última actualización:</strong> {formatTime(lastUpdatedAt)}</div>
-        <div><strong>Aviones visibles:</strong> {visibleAircraftCount}</div>
-        <div><strong>Seleccionado:</strong> {selectedId || "ninguno"}</div>
-        <div><strong>Icono:</strong> {iconLoaded ? "cargado" : "pendiente"}</div>
-      </div>
     </div>
   );
 }
@@ -418,19 +371,11 @@ function SelectionCard({ aircraft, expanded, setExpanded, onClose }) {
   )} · ${formatAltitude(aircraft.geo_altitude ?? aircraft.baro_altitude)}`;
 
   return (
-    <div
-      className="
-        absolute z-20
-        left-3 right-3 bottom-4
-        md:left-auto md:right-4 md:bottom-4 md:w-[380px] md:max-w-[calc(100vw-2rem)]
-      "
-    >
+    <div className="absolute left-3 right-3 bottom-4 z-20 md:left-auto md:right-4 md:bottom-4 md:w-[380px] md:max-w-[calc(100vw-2rem)]">
       <div
-        className={`
-          rounded-3xl bg-white/95 p-4 shadow-2xl ring-1 ring-slate-200 backdrop-blur
-          ${expanded ? "max-h-[52dvh] overflow-y-auto" : "overflow-hidden"}
-          md:max-h-none
-        `}
+        className={`rounded-3xl bg-white/95 p-4 shadow-2xl ring-1 ring-slate-200 backdrop-blur ${
+          expanded ? "max-h-[52dvh] overflow-y-auto" : "overflow-hidden"
+        } md:max-h-none`}
       >
         <div className="mb-3 flex justify-center md:hidden">
           <div className="h-1.5 w-12 rounded-full bg-slate-300" />
@@ -534,16 +479,6 @@ function SelectionCard({ aircraft, expanded, setExpanded, onClose }) {
               <p className="font-bold text-slate-700">Último contacto</p>
               <p className="text-slate-900">{formatTime(aircraft.last_contact)}</p>
             </div>
-
-            <div className="col-span-2">
-              <p className="font-bold text-slate-700">Resumen</p>
-              <p className="text-slate-900">
-                {aircraft.callsign || aircraft.icao24 || "Aeronave"} ·{" "}
-                {aircraft.on_ground ? "en tierra" : "en vuelo"} ·{" "}
-                {formatSpeed(aircraft.velocity)} · rumbo {formatTrack(aircraft.true_track)} ·
-                altitud {formatAltitude(aircraft.geo_altitude ?? aircraft.baro_altitude)}
-              </p>
-            </div>
           </div>
         )}
       </div>
@@ -557,8 +492,6 @@ export default function MapPage() {
   const popupRef = useRef(null);
 
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [iconLoaded, setIconLoaded] = useState(false);
-  const [mapError, setMapError] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cardExpanded, setCardExpanded] = useState(!isMobileViewport());
@@ -575,7 +508,7 @@ export default function MapPage() {
     maxSpeed: "",
   });
 
-  const { data, error, loading, lastUpdatedAt } = useLiveFlights({
+  const { data } = useLiveFlights({
     bounds: MADRID_BOUNDS,
     refreshMs: 15000,
     enabled: true,
@@ -667,7 +600,6 @@ export default function MapPage() {
 
     map.on("load", () => {
       setMapLoaded(true);
-      setMapError("");
 
       map.addSource(AIRCRAFT_SOURCE_ID, {
         type: "geojson",
@@ -687,8 +619,6 @@ export default function MapPage() {
           map.addImage(AIRCRAFT_IMAGE_ID, image);
         }
 
-        setIconLoaded(true);
-
         map.addLayer({
           id: SELECTED_LAYER_ID,
           type: "circle",
@@ -698,10 +628,10 @@ export default function MapPage() {
               "interpolate",
               ["linear"],
               ["zoom"],
-              6, 10,
-              8, 13,
-              10, 16,
-              12, 20,
+              6, 15,
+              8, 20,
+              10, 24,
+              12, 30,
             ],
             "circle-color": "#f97316",
             "circle-opacity": 0.18,
@@ -720,10 +650,10 @@ export default function MapPage() {
               "interpolate",
               ["linear"],
               ["zoom"],
-              6, 0.04,
-              8, 0.05,
-              10, 0.06,
-              12, 0.075,
+              6, 0.06,
+              8, 0.075,
+              10, 0.09,
+              12, 0.1125,
             ],
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -744,10 +674,6 @@ export default function MapPage() {
         });
       };
 
-      image.onerror = () => {
-        setMapError("No se pudo cargar avion1.png");
-      };
-
       image.src = avionMarker;
     });
 
@@ -760,10 +686,6 @@ export default function MapPage() {
         setSelectedId(null);
         closePopup();
       }
-    });
-
-    map.on("error", (event) => {
-      setMapError(event?.error?.message || "Error cargando el mapa base.");
     });
 
     mapRef.current = map;
@@ -780,25 +702,15 @@ export default function MapPage() {
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
 
-    const aircraftSource = map.getSource(AIRCRAFT_SOURCE_ID);
-    const selectedSource = map.getSource(SELECTED_SOURCE_ID);
-
-    if (aircraftSource) {
-      aircraftSource.setData(geojson);
-    }
-
-    if (selectedSource) {
-      selectedSource.setData(selectedFeatureCollection);
-    }
+    map.getSource(AIRCRAFT_SOURCE_ID)?.setData(geojson);
+    map.getSource(SELECTED_SOURCE_ID)?.setData(selectedFeatureCollection);
   }, [geojson, selectedFeatureCollection, mapLoaded]);
 
   useEffect(() => {
     if (selectedFeatureCollection.features.length > 0) return;
 
-    if (popupRef.current) {
-      popupRef.current.remove();
-      popupRef.current = null;
-    }
+    popupRef.current?.remove();
+    popupRef.current = null;
   }, [selectedFeatureCollection]);
 
   const visibleAircraftCount = geojson.features.length;
@@ -815,13 +727,7 @@ export default function MapPage() {
           filters={filters}
           setFilters={setFilters}
           data={data}
-          mapError={mapError}
-          error={error}
-          loading={loading}
-          lastUpdatedAt={lastUpdatedAt}
           visibleAircraftCount={visibleAircraftCount}
-          selectedId={selectedId}
-          iconLoaded={iconLoaded}
         />
       </div>
 
@@ -851,13 +757,7 @@ export default function MapPage() {
               filters={filters}
               setFilters={setFilters}
               data={data}
-              mapError={mapError}
-              error={error}
-              loading={loading}
-              lastUpdatedAt={lastUpdatedAt}
               visibleAircraftCount={visibleAircraftCount}
-              selectedId={selectedId}
-              iconLoaded={iconLoaded}
             />
           </div>
         </div>
