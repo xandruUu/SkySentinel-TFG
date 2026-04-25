@@ -14,12 +14,24 @@ import ProfilePage from "../pages/profile/ProfilePage.jsx";
 
 function LandingRoute() {
   const [sliderResetKey, setSliderResetKey] = useState(0);
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated, initializing } = useAuth();
   const navigate = useNavigate();
+
+  if (initializing) {
+    return (
+      <div className="grid min-h-dvh place-items-center text-muted">
+        Cargando...
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/app/map" replace />;
+  }
 
   const goLogin = () => navigate("/login");
   const goRegister = () => navigate("/register");
-  const goApp = () => navigate("/app/map");
+  const goApp = () => navigate("/app/map", { replace: true });
 
   const doLogout = async () => {
     await logout();
@@ -78,7 +90,7 @@ export default function App() {
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/app/map" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

@@ -6,14 +6,14 @@ export default function PublicOnly({ children }) {
 
   if (initializing) {
     return (
-      <div className="min-h-dvh grid place-items-center text-muted">
+      <div className="grid min-h-dvh place-items-center text-muted">
         Cargando...
       </div>
     );
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/app" replace />;
+    return <Navigate to="/app/map" replace />;
   }
 
   return children;
