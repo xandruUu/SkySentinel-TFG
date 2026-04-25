@@ -9,6 +9,7 @@ import RequireAuth from "../routes/requireAuth.jsx";
 import PublicOnly from "../routes/PublicOnly.jsx";
 import AppLayout from "./layouts/AppLayout.jsx";
 
+import HomePage from "../pages/home/HomePage.jsx";
 import MapPage from "../pages/map/MapPage.jsx";
 import ProfilePage from "../pages/profile/ProfilePage.jsx";
 
@@ -26,12 +27,12 @@ function LandingRoute() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/app/map" replace />;
+    return <Navigate to="/app/home" replace />;
   }
 
   const goLogin = () => navigate("/login");
   const goRegister = () => navigate("/register");
-  const goApp = () => navigate("/app/map", { replace: true });
+  const goApp = () => navigate("/app/home", { replace: true });
 
   const doLogout = async () => {
     await logout();
@@ -85,12 +86,13 @@ export default function App() {
               </RequireAuth>
             }
           >
-            <Route index element={<Navigate to="map" replace />} />
+            <Route index element={<Navigate to="home" replace />} />
+            <Route path="home" element={<HomePage />} />
             <Route path="map" element={<MapPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/app/map" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
