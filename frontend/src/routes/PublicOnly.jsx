@@ -13,7 +13,7 @@ export default function PublicOnly({ children }) {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/app/map" replace />;
+    return <Navigate to="/app/home" replace />;
   }
 
   return children;
