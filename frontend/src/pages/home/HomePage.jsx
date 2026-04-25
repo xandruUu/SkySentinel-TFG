@@ -1,24 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bell, Plane, Radar, Smartphone, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-const ALERTS_STORAGE_KEY = "skysentinel.aircraftAlerts.v1";
+import { useAircraftAlerts } from "../../features/alerts/useAircraftAlerts.js";
 
 function getNotificationStatus() {
   if (!("Notification" in window)) return "unsupported";
   return Notification.permission;
-}
-
-function loadAlerts() {
-  try {
-    return JSON.parse(localStorage.getItem(ALERTS_STORAGE_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveAlerts(alerts) {
-  localStorage.setItem(ALERTS_STORAGE_KEY, JSON.stringify(alerts));
 }
 
 function StatusBadge({ status }) {
@@ -63,11 +50,20 @@ export default function HomePage() {
   const [notificationStatus, setNotificationStatus] = useState("default");
   const [model, setModel] = useState("");
   const [operator, setOperator] = useState("");
-  const [alerts, setAlerts] = useState([]);
+
+  const {
+    alerts,
+    matches,
+    createAlert: saveAircraftAlert,
+    deleteAlert,
+    loading,
+    error,
+    aircraftCount,
+    lastScanAt,
+  } = useAircraftAlerts({ enabled: true });
 
   useEffect(() => {
     setNotificationStatus(getNotificationStatus());
-    setAlerts(loadAlerts());
   }, []);
 
   const canCreateAlert = useMemo(() => {
@@ -104,24 +100,13 @@ export default function HomePage() {
   const createAlert = () => {
     if (!canCreateAlert) return;
 
-    const nextAlert = {
-      id: crypto.randomUUID(),
-      model: model.trim().toUpperCase(),
-      operator: operator.trim().toUpperCase(),
-      createdAt: new Date().toISOString(),
-    };
+    saveAircraftAlert({
+      model,
+      operator,
+    });
 
-    const nextAlerts = [nextAlert, ...alerts];
-    setAlerts(nextAlerts);
-    saveAlerts(nextAlerts);
     setModel("");
     setOperator("");
-  };
-
-  const deleteAlert = (id) => {
-    const nextAlerts = alerts.filter((alert) => alert.id !== id);
-    setAlerts(nextAlerts);
-    saveAlerts(nextAlerts);
   };
 
   return (
@@ -136,8 +121,8 @@ export default function HomePage() {
               SkySentinel
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80 sm:text-base">
-              Accede al radar en vivo, crea alertas por aeronave o compañía y prepara las
-              notificaciones para móvil.
+              Accede al radar en vivo, crea alertas por aeronave o compañía y prepara
+              las notificaciones para móvil.
             </p>
           </div>
 
@@ -153,11 +138,10 @@ export default function HomePage() {
       </section>
 
       <div className="mt-6 grid gap-5 lg:grid-cols-2">
-
         <HomeCard
           icon={Bell}
           title="Alertas inteligentes"
-          description="Crea alertas locales por modelo de avión o compañía/callsign."
+          description="Crea alertas por modelo de avión o compañía/callsign."
         >
           <div className="grid gap-3">
             <input
@@ -213,6 +197,54 @@ export default function HomePage() {
                 Probar aviso
               </button>
             </div>
+          </div>
+        </HomeCard>
+
+        <HomeCard
+          icon={Radar}
+          title="Escaneo de alertas"
+          description="La app compara tus alertas con los vuelos detectados mientras está abierta."
+        >
+          <div className="grid gap-3">
+            <div className="rounded-2xl bg-card p-4 text-sm font-semibold text-muted ring-1 ring-primary/10">
+              <p>
+                <strong className="text-ink">Aeronaves analizadas:</strong>{" "}
+                {aircraftCount}
+              </p>
+              <p className="mt-1">
+                <strong className="text-ink">Coincidencias:</strong>{" "}
+                {matches.length}
+              </p>
+              <p className="mt-1">
+                <strong className="text-ink">Estado:</strong>{" "}
+                {loading ? "Analizando..." : error || "Activo"}
+              </p>
+              <p className="mt-1">
+                <strong className="text-ink">Último escaneo:</strong>{" "}
+                {lastScanAt ? new Date(lastScanAt).toLocaleTimeString() : "—"}
+              </p>
+            </div>
+
+            {matches.length > 0 && (
+              <div className="space-y-3">
+                {matches.slice(0, 5).map((match) => (
+                  <div
+                    key={match.id}
+                    className="rounded-2xl bg-white p-4 text-sm ring-1 ring-primary/10"
+                  >
+                    <p className="font-black text-primary">
+                      {match.aircraft.callsign ||
+                        match.aircraft.icao24 ||
+                        "Aeronave"}
+                    </p>
+                    <p className="mt-1 text-muted">
+                      Modelo: {match.aircraft.model || "Desconocido"} · País:{" "}
+                      {match.aircraft.origin_country || "—"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </HomeCard>
 
