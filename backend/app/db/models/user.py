@@ -40,8 +40,3 @@ class User(Base):
         default=datetime.utcnow,
         nullable=False,
     )
-
-    team_id: Mapped[int | None] = mapped_column(
-        ForeignKey("logistic_team.team_id"),
-        nullable=True,
-    )
