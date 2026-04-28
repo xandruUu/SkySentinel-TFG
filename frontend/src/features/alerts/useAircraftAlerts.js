@@ -57,9 +57,7 @@ async function apiRequest(path, { token, method = "GET", body } = {}) {
     throw new Error(text || `Error HTTP ${response.status}`);
   }
 
-  if (response.status === 204) {
-    return null;
-  }
+  if (response.status === 204) return null;
 
   return response.json();
 }
@@ -104,8 +102,8 @@ function matchesAlert(aircraft, alert) {
 
   const modelOk =
     !alertModel ||
-    aircraftModel.includes(alertModel) ||
-    alertModel.includes(aircraftModel);
+    (!!aircraftModel &&
+      (aircraftModel.includes(alertModel) || alertModel.includes(aircraftModel)));
 
   const operatorOk =
     !alertOperator ||
@@ -120,18 +118,27 @@ function canNotify() {
   return "Notification" in window && Notification.permission === "granted";
 }
 
-function sendNotification({ alert, aircraft }) {
-  if (!canNotify()) return;
+function sendGroupedNotification(newMatches) {
+  if (!canNotify() || newMatches.length === 0) return;
 
-  const title = "SkySentinel alerta";
-  const body = `${getAircraftLabel(aircraft)} coincide con ${
-    alert.model || "modelo libre"
-  } · ${alert.operator || "operador libre"}`;
+  if (newMatches.length === 1) {
+    const match = newMatches[0];
 
-  new Notification(title, {
-    body,
+    new Notification("SkySentinel alerta", {
+      body: `${getAircraftLabel(match.aircraft)} coincide con ${
+        match.alert.model || "modelo libre"
+      } · ${match.alert.operator || "operador libre"}`,
+      icon: "/icons/icon-192.png",
+      tag: `skysentinel-${match.id}`,
+    });
+
+    return;
+  }
+
+  new Notification("SkySentinel alerta", {
+    body: `${newMatches.length} aeronaves coinciden con tus alertas.`,
     icon: "/icons/icon-192.png",
-    tag: `skysentinel-${alert.id}-${aircraft.icao24 || aircraft.callsign}`,
+    tag: "skysentinel-alerts-summary",
   });
 }
 
@@ -162,8 +169,7 @@ export function useAircraftAlerts({ enabled = true } = {}) {
 
     try {
       const payload = await apiRequest("/api/alerts", { token });
-      const mappedAlerts = (payload?.items || []).map(mapApiAlert);
-      setAlerts(mappedAlerts);
+      setAlerts((payload?.items || []).map(mapApiAlert));
     } catch (err) {
       setAlertsError(err?.message || "No se pudieron cargar las alertas.");
     } finally {
@@ -215,6 +221,7 @@ export function useAircraftAlerts({ enabled = true } = {}) {
     }
 
     const nextMatches = [];
+    const newMatchesToNotify = [];
 
     for (const alert of alerts) {
       if (alert.is_active === false) continue;
@@ -225,20 +232,24 @@ export function useAircraftAlerts({ enabled = true } = {}) {
         const aircraftKey = aircraft.icao24 || aircraft.callsign || "unknown";
         const notificationKey = `${alert.id}:${aircraftKey}`;
 
-        nextMatches.push({
+        const match = {
           id: notificationKey,
           alert,
           aircraft,
-        });
+        };
+
+        nextMatches.push(match);
 
         if (!notifiedRef.current.has(notificationKey)) {
-          sendNotification({ alert, aircraft });
+          newMatchesToNotify.push(match);
           notifiedRef.current.add(notificationKey);
         }
       }
     }
 
+    sendGroupedNotification(newMatchesToNotify);
     saveJson(NOTIFIED_STORAGE_KEY, Array.from(notifiedRef.current));
+
     setMatches(nextMatches);
     setLastScanAt(Date.now());
   }, [alerts, states, enabled]);
