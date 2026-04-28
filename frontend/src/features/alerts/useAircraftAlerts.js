@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "../auth/useAuth.js";
 import { useLiveFlights } from "../flights/useLiveFlights.js";
 
-const ALERTS_STORAGE_KEY = "skysentinel.aircraftAlerts.v1";
 const NOTIFIED_STORAGE_KEY = "skysentinel.notifiedAlerts.v1";
 
 const MADRID_BOUNDS = {
@@ -27,6 +27,43 @@ function saveJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function mapApiAlert(alert) {
+  return {
+    id: alert.alert_id,
+    alert_id: alert.alert_id,
+    user_id: alert.user_id,
+    model: alert.aircraft_model || "",
+    operator: alert.operator_company || "",
+    aircraft_model: alert.aircraft_model || "",
+    operator_company: alert.operator_company || "",
+    is_active: alert.is_active,
+    createdAt: alert.created_at,
+    created_at: alert.created_at,
+  };
+}
+
+async function apiRequest(path, { token, method = "GET", body } = {}) {
+  const response = await fetch(path, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Error HTTP ${response.status}`);
+  }
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  return response.json();
+}
+
 function getAircraftModel(aircraft) {
   return normalizeText(
     aircraft?.model ||
@@ -39,7 +76,8 @@ function getAircraftModel(aircraft) {
 
 function getAircraftOperator(aircraft) {
   return normalizeText(
-    aircraft?.operator ||
+    aircraft?.operator_company ||
+      aircraft?.operator ||
       aircraft?.airline ||
       aircraft?.callsign ||
       aircraft?.origin_country ||
@@ -56,8 +94,8 @@ function getAircraftLabel(aircraft) {
 }
 
 function matchesAlert(aircraft, alert) {
-  const alertModel = normalizeText(alert.model);
-  const alertOperator = normalizeText(alert.operator);
+  const alertModel = normalizeText(alert.model || alert.aircraft_model);
+  const alertOperator = normalizeText(alert.operator || alert.operator_company);
 
   const aircraftModel = getAircraftModel(aircraft);
   const aircraftOperator = getAircraftOperator(aircraft);
@@ -98,8 +136,12 @@ function sendNotification({ alert, aircraft }) {
 }
 
 export function useAircraftAlerts({ enabled = true } = {}) {
-  const [alerts, setAlerts] = useState(() => loadJson(ALERTS_STORAGE_KEY, []));
+  const { token, isAuthenticated } = useAuth();
+
+  const [alerts, setAlerts] = useState([]);
   const [matches, setMatches] = useState([]);
+  const [alertsLoading, setAlertsLoading] = useState(false);
+  const [alertsError, setAlertsError] = useState("");
   const [lastScanAt, setLastScanAt] = useState(null);
 
   const notifiedRef = useRef(new Set(loadJson(NOTIFIED_STORAGE_KEY, [])));
@@ -107,30 +149,64 @@ export function useAircraftAlerts({ enabled = true } = {}) {
   const { data, error, loading, lastUpdatedAt } = useLiveFlights({
     bounds: MADRID_BOUNDS,
     refreshMs: 15000,
-    enabled,
+    enabled: enabled && isAuthenticated,
   });
 
   const states = useMemo(() => data?.states || [], [data]);
 
-  const saveAlerts = (nextAlerts) => {
-    setAlerts(nextAlerts);
-    saveJson(ALERTS_STORAGE_KEY, nextAlerts);
+  const loadAlerts = async () => {
+    if (!token) return;
+
+    setAlertsLoading(true);
+    setAlertsError("");
+
+    try {
+      const payload = await apiRequest("/api/alerts", { token });
+      const mappedAlerts = (payload?.items || []).map(mapApiAlert);
+      setAlerts(mappedAlerts);
+    } catch (err) {
+      setAlertsError(err?.message || "No se pudieron cargar las alertas.");
+    } finally {
+      setAlertsLoading(false);
+    }
   };
 
-  const createAlert = ({ model, operator }) => {
-    const nextAlert = {
-      id: crypto.randomUUID(),
-      model: normalizeText(model),
-      operator: normalizeText(operator),
-      createdAt: new Date().toISOString(),
-    };
+  const createAlert = async ({ model, operator }) => {
+    if (!token) return;
 
-    saveAlerts([nextAlert, ...alerts]);
+    const createdAlert = await apiRequest("/api/alerts", {
+      token,
+      method: "POST",
+      body: {
+        aircraft_model: normalizeText(model) || null,
+        operator_company: normalizeText(operator) || null,
+      },
+    });
+
+    setAlerts((currentAlerts) => [mapApiAlert(createdAlert), ...currentAlerts]);
   };
 
-  const deleteAlert = (id) => {
-    saveAlerts(alerts.filter((alert) => alert.id !== id));
+  const deleteAlert = async (id) => {
+    if (!token) return;
+
+    await apiRequest(`/api/alerts/${id}`, {
+      token,
+      method: "DELETE",
+    });
+
+    setAlerts((currentAlerts) =>
+      currentAlerts.filter((alert) => alert.id !== id)
+    );
   };
+
+  useEffect(() => {
+    if (!enabled || !isAuthenticated || !token) {
+      setAlerts([]);
+      return;
+    }
+
+    void loadAlerts();
+  }, [enabled, isAuthenticated, token]);
 
   useEffect(() => {
     if (!enabled || alerts.length === 0 || states.length === 0) {
@@ -141,6 +217,8 @@ export function useAircraftAlerts({ enabled = true } = {}) {
     const nextMatches = [];
 
     for (const alert of alerts) {
+      if (alert.is_active === false) continue;
+
       for (const aircraft of states) {
         if (!matchesAlert(aircraft, alert)) continue;
 
@@ -170,10 +248,11 @@ export function useAircraftAlerts({ enabled = true } = {}) {
     matches,
     createAlert,
     deleteAlert,
-    loading,
-    error,
+    loading: loading || alertsLoading,
+    error: error || alertsError,
     lastUpdatedAt,
     lastScanAt,
     aircraftCount: states.length,
+    reloadAlerts: loadAlerts,
   };
 }

@@ -27,13 +27,11 @@ def create_user(
     email: str,
     password_hash: str,
     role: str = "user",
-    team_id: int | None = None,
 ) -> User:
     new_user = User(
         email=email,
         password_hash=password_hash,
         role=role,
-        team_id=team_id,
     )
 
     db_session.add(new_user)

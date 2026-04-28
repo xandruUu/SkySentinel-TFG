@@ -19,12 +19,11 @@ def register_user(user_data: UserCreateRequest, database_session: Session = Depe
 
     hashed_user_password = hash_password(user_data.password)
     created_user = create_user(
-        db_session=database_session,
-        email=user_data.email,
-        password_hash=hashed_user_password,
-        role="user",
-        team_id=None,
-    )
+    db_session=database_session,
+    email=user_data.email,
+    password_hash=hashed_user_password,
+    role="user",
+)
     return UserResponse.model_validate(created_user)
 
 @router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)

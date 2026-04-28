@@ -33,6 +33,5 @@ class UserResponse(BaseModel):
     email: EmailStr
     role: str
     created_at: datetime
-    team_id: int | None = None
 
     model_config = {"from_attributes": True}
