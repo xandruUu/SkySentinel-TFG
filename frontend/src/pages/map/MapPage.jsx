@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { useLiveFlights } from "../../features/flights/useLiveFlights.js";
+import { useAuth } from "../../features/auth/useAuth.js";
 import avionMarker from "../../assets/avion1.png";
 
 const MADRID_BOUNDS = {
@@ -13,13 +14,53 @@ const MADRID_BOUNDS = {
 const MADRID_CENTER = [-3.7038, 40.4168];
 
 const AIRCRAFT_SOURCE_ID = "aircraft";
+const ALERT_SOURCE_ID = "alert-aircraft";
 const SELECTED_SOURCE_ID = "selected-aircraft";
+
 const AIRCRAFT_LAYER_ID = "aircraft-symbols";
+const ALERT_LAYER_ID = "alert-aircraft-halos";
 const SELECTED_LAYER_ID = "selected-aircraft-halo";
+
 const AIRCRAFT_IMAGE_ID = "aircraft-marker-image";
+
+const ALERT_COLORS = [
+  "#ef4444",
+  "#a855f7",
+  "#22c55e",
+  "#06b6d4",
+  "#eab308",
+  "#ec4899",
+];
 
 function isMobileViewport() {
   return typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
+}
+
+function normalizeText(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function matchesAlert(aircraft, alert) {
+  const alertModel = normalizeText(alert.aircraft_model);
+  const alertOperator = normalizeText(alert.operator_company);
+
+  const aircraftModel = normalizeText(aircraft.model || aircraft.aircraft_model);
+  const aircraftOperator = normalizeText(aircraft.operator_company);
+  const aircraftCallsign = normalizeText(aircraft.callsign);
+  const aircraftCountry = normalizeText(aircraft.origin_country);
+
+  const modelOk =
+    !alertModel ||
+    (!!aircraftModel &&
+      (aircraftModel.includes(alertModel) || alertModel.includes(aircraftModel)));
+
+  const operatorOk =
+    !alertOperator ||
+    aircraftOperator.includes(alertOperator) ||
+    aircraftCallsign.includes(alertOperator) ||
+    aircraftCountry.includes(alertOperator);
+
+  return modelOk && operatorOk;
 }
 
 function buildRasterStyle() {
@@ -45,6 +86,8 @@ function normalizeState(rawState) {
 
     if (typeof longitude !== "number" || typeof latitude !== "number") return null;
 
+    const model = rawState.model ?? rawState.aircraft_model ?? null;
+
     return {
       icao24: String(rawState.icao24 || "").toLowerCase(),
       callsign: String(rawState.callsign || "").trim(),
@@ -56,7 +99,10 @@ function normalizeState(rawState) {
       on_ground: Boolean(rawState.on_ground),
       baro_altitude: rawState.baro_altitude ?? null,
       geo_altitude: rawState.geo_altitude ?? null,
-      model: rawState.model ?? null,
+      model,
+      aircraft_model: model,
+      operator_company: rawState.operator_company ?? null,
+      registration: rawState.registration ?? null,
       last_contact: rawState.last_contact ?? null,
       spi: rawState.spi ?? null,
       squawk: rawState.squawk ?? null,
@@ -81,6 +127,9 @@ function normalizeState(rawState) {
     baro_altitude: rawState[7] ?? null,
     geo_altitude: rawState[13] ?? null,
     model: null,
+    aircraft_model: null,
+    operator_company: null,
+    registration: null,
     last_contact: rawState[4] ?? null,
     spi: rawState[15] ?? null,
     squawk: rawState[14] ?? null,
@@ -121,15 +170,27 @@ function formatPositionSource(value) {
 }
 
 function buildPopupHtml(aircraft) {
+  const model = aircraft.aircraft_model || aircraft.model || "Modelo desconocido";
+  const operator = aircraft.operator_company || "Operador desconocido";
+  const alertLabel = aircraft.alert_label
+    ? `<div style="margin-top:8px;display:inline-block;border-radius:999px;background:${aircraft.alert_color};color:white;padding:4px 8px;font-size:11px;font-weight:800;">Alerta: ${aircraft.alert_label}</div>`
+    : "";
+
   return `
-    <div style="min-width:170px;font-family:Inter,Arial,sans-serif;text-align:center;padding:4px 2px;">
+    <div style="min-width:190px;font-family:Inter,Arial,sans-serif;text-align:center;padding:4px 2px;">
       <div style="font-size:22px;font-weight:900;color:#2563eb;letter-spacing:1px;line-height:1.1;">
         ${aircraft.callsign?.trim() || aircraft.icao24 || "—"}
       </div>
 
       <div style="margin-top:4px;font-size:13px;color:#64748b;font-weight:600;">
-        ${aircraft.model || "Modelo desconocido"}
+        ${model}
       </div>
+
+      <div style="margin-top:2px;font-size:12px;color:#64748b;font-weight:600;">
+        ${operator}
+      </div>
+
+      ${alertLabel}
     </div>
   `;
 }
@@ -185,8 +246,9 @@ function toFeatureCollection(states, filters) {
       }
 
       if (q) {
-        const haystack =
-          `${aircraft.icao24} ${aircraft.callsign} ${aircraft.origin_country} ${aircraft.model || ""}`.toLowerCase();
+        const haystack = `${aircraft.icao24} ${aircraft.callsign} ${aircraft.origin_country} ${
+          aircraft.model || ""
+        } ${aircraft.operator_company || ""} ${aircraft.registration || ""}`.toLowerCase();
 
         if (!haystack.includes(q)) return false;
       }
@@ -252,7 +314,9 @@ function FiltersPanel({ filters, setFilters, data, visibleAircraftCount }) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">Altitud mín.</label>
+            <label className="mb-1 block text-sm font-medium text-slate-800">
+              Altitud mín.
+            </label>
             <input
               type="number"
               value={filters.minAltitude}
@@ -265,7 +329,9 @@ function FiltersPanel({ filters, setFilters, data, visibleAircraftCount }) {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">Altitud máx.</label>
+            <label className="mb-1 block text-sm font-medium text-slate-800">
+              Altitud máx.
+            </label>
             <input
               type="number"
               value={filters.maxAltitude}
@@ -280,7 +346,9 @@ function FiltersPanel({ filters, setFilters, data, visibleAircraftCount }) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">Velocidad mín.</label>
+            <label className="mb-1 block text-sm font-medium text-slate-800">
+              Velocidad mín.
+            </label>
             <input
               type="number"
               value={filters.minSpeed}
@@ -293,7 +361,9 @@ function FiltersPanel({ filters, setFilters, data, visibleAircraftCount }) {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">Velocidad máx.</label>
+            <label className="mb-1 block text-sm font-medium text-slate-800">
+              Velocidad máx.
+            </label>
             <input
               type="number"
               value={filters.maxSpeed}
@@ -390,8 +460,20 @@ function SelectionCard({ aircraft, expanded, setExpanded, onClose }) {
               ICAO24 · {aircraft.icao24 || "—"}
             </p>
             <p className="mt-1 truncate text-xs text-slate-500">
-              Modelo · {aircraft.model || "Desconocido"}
+              Modelo · {aircraft.aircraft_model || aircraft.model || "Desconocido"}
             </p>
+            <p className="mt-1 truncate text-xs text-slate-500">
+              Operador · {aircraft.operator_company || "Desconocido"}
+            </p>
+
+            {aircraft.alert_label && (
+              <p
+                className="mt-2 inline-flex rounded-full px-3 py-1 text-xs font-black text-white"
+                style={{ backgroundColor: aircraft.alert_color || "#ef4444" }}
+              >
+                Alerta · {aircraft.alert_label}
+              </p>
+            )}
           </div>
 
           <div className="flex shrink-0 gap-2">
@@ -461,6 +543,11 @@ function SelectionCard({ aircraft, expanded, setExpanded, onClose }) {
             </div>
 
             <div>
+              <p className="font-bold text-slate-700">Matrícula</p>
+              <p className="text-slate-900">{aircraft.registration || "—"}</p>
+            </div>
+
+            <div>
               <p className="font-bold text-slate-700">Squawk</p>
               <p className="text-slate-900">{aircraft.squawk || "—"}</p>
             </div>
@@ -491,10 +578,13 @@ export default function MapPage() {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
 
+  const { token } = useAuth();
+
   const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cardExpanded, setCardExpanded] = useState(!isMobileViewport());
+  const [alerts, setAlerts] = useState([]);
 
   const [filters, setFilters] = useState({
     query: "",
@@ -508,6 +598,43 @@ export default function MapPage() {
     maxSpeed: "",
   });
 
+  useEffect(() => {
+    if (!token) {
+      setAlerts([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadAlerts() {
+      try {
+        const response = await fetch("/api/alerts", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) return;
+
+        const payload = await response.json();
+
+        if (!cancelled) {
+          setAlerts(payload?.items || []);
+        }
+      } catch {
+        if (!cancelled) {
+          setAlerts([]);
+        }
+      }
+    }
+
+    void loadAlerts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
   const { data } = useLiveFlights({
     bounds: MADRID_BOUNDS,
     refreshMs: 15000,
@@ -520,17 +647,54 @@ export default function MapPage() {
     return toFeatureCollection(rawStates, filters);
   }, [rawStates, filters]);
 
+  const alertFeatureCollection = useMemo(() => {
+    if (!alerts.length) return emptyFeatureCollection();
+
+    const alertFeatures = [];
+
+    for (const feature of geojson.features) {
+      const aircraft = feature.properties || {};
+      const matchedAlertIndex = alerts.findIndex(
+        (alert) => alert.is_active !== false && matchesAlert(aircraft, alert)
+      );
+
+      if (matchedAlertIndex === -1) continue;
+
+      const matchedAlert = alerts[matchedAlertIndex];
+
+      alertFeatures.push({
+        ...feature,
+        properties: {
+          ...aircraft,
+          alert_match: true,
+          alert_color: ALERT_COLORS[matchedAlertIndex % ALERT_COLORS.length],
+          alert_label:
+            matchedAlert.aircraft_model ||
+            matchedAlert.operator_company ||
+            "Alerta",
+        },
+      });
+    }
+
+    return {
+      type: "FeatureCollection",
+      features: alertFeatures,
+    };
+  }, [geojson, alerts]);
+
   const selectedFeatureCollection = useMemo(() => {
     if (!selectedId) return emptyFeatureCollection();
 
-    const selectedFeature = geojson.features.find(
-      (feature) => feature.properties?.icao24 === selectedId
-    );
+    const selectedFeature =
+      alertFeatureCollection.features.find(
+        (feature) => feature.properties?.icao24 === selectedId
+      ) ||
+      geojson.features.find((feature) => feature.properties?.icao24 === selectedId);
 
     return selectedFeature
       ? { type: "FeatureCollection", features: [selectedFeature] }
       : emptyFeatureCollection();
-  }, [geojson, selectedId]);
+  }, [geojson, alertFeatureCollection, selectedId]);
 
   const selectedAircraft = selectedFeatureCollection.features[0]?.properties || null;
 
@@ -606,6 +770,11 @@ export default function MapPage() {
         data: emptyFeatureCollection(),
       });
 
+      map.addSource(ALERT_SOURCE_ID, {
+        type: "geojson",
+        data: emptyFeatureCollection(),
+      });
+
       map.addSource(SELECTED_SOURCE_ID, {
         type: "geojson",
         data: emptyFeatureCollection(),
@@ -618,6 +787,27 @@ export default function MapPage() {
         if (!map.hasImage(AIRCRAFT_IMAGE_ID)) {
           map.addImage(AIRCRAFT_IMAGE_ID, image);
         }
+
+        map.addLayer({
+          id: ALERT_LAYER_ID,
+          type: "circle",
+          source: ALERT_SOURCE_ID,
+          paint: {
+            "circle-radius": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              6, 17,
+              8, 23,
+              10, 29,
+              12, 35,
+            ],
+            "circle-color": ["get", "alert_color"],
+            "circle-opacity": 0.16,
+            "circle-stroke-color": ["get", "alert_color"],
+            "circle-stroke-width": 2,
+          },
+        });
 
         map.addLayer({
           id: SELECTED_LAYER_ID,
@@ -703,8 +893,9 @@ export default function MapPage() {
     if (!map || !mapLoaded) return;
 
     map.getSource(AIRCRAFT_SOURCE_ID)?.setData(geojson);
+    map.getSource(ALERT_SOURCE_ID)?.setData(alertFeatureCollection);
     map.getSource(SELECTED_SOURCE_ID)?.setData(selectedFeatureCollection);
-  }, [geojson, selectedFeatureCollection, mapLoaded]);
+  }, [geojson, alertFeatureCollection, selectedFeatureCollection, mapLoaded]);
 
   useEffect(() => {
     if (selectedFeatureCollection.features.length > 0) return;
