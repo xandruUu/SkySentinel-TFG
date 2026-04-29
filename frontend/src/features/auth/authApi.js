@@ -26,10 +26,22 @@ export async function apiRequest(path, options = {}) {
   return data;
 }
 
-export async function registerUser({ email, password }) {
+export async function registerUser({
+  email,
+  password,
+  username,
+  firstName,
+  lastName,
+}) {
   return apiRequest("/api/auth/register", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({
+      email,
+      password,
+      username,
+      first_name: firstName,
+      last_name: lastName,
+    }),
   });
 }
 

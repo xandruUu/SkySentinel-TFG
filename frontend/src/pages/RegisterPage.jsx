@@ -12,6 +12,9 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const { register } = useAuth();
 
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [pass2, setPass2] = useState("");
@@ -20,7 +23,9 @@ export default function RegisterPage() {
 
   const passOk = pass.trim().length >= 8;
   const match = pass === pass2 && pass2.length > 0;
-  const canSubmit = email.trim().length > 3 && passOk && match;
+  const usernameOk = username.trim().length >= 3;
+  const nameOk = firstName.trim().length >= 2;
+  const canSubmit = email.trim().length > 3 && usernameOk && nameOk && passOk && match;
 
   const submit = async (e) => {
     e.preventDefault();
@@ -30,8 +35,14 @@ export default function RegisterPage() {
     setSubmitting(true);
 
     try {
-      await register({ email, password: pass });
-      // Tras registrar, enviamos al login con replace
+      await register({
+        email,
+        password: pass,
+        username,
+        firstName,
+        lastName,
+      });
+
       navigate("/login", { replace: true });
     } catch (err) {
       setErrorMsg(err?.message || "No se ha podido completar el registro.");
@@ -48,7 +59,7 @@ export default function RegisterPage() {
         <div className="mt-6">
           <h2 className="text-2xl font-bold text-primary">Crea tu cuenta</h2>
           <p className="mt-2 text-sm text-muted">
-            Guarda avistamientos, alertas y aeronaves favoritas.
+            Configura tu perfil para guardar alertas y consultar aeronaves detectadas.
           </p>
         </div>
 
@@ -60,6 +71,30 @@ export default function RegisterPage() {
         )}
 
         <form className="mt-6 space-y-4" onSubmit={submit}>
+          <TextInput
+            label="Nombre"
+            value={firstName}
+            onChange={setFirstName}
+            placeholder="Tu nombre"
+            autoComplete="given-name"
+          />
+
+          <TextInput
+            label="Apellidos"
+            value={lastName}
+            onChange={setLastName}
+            placeholder="Tus apellidos"
+            autoComplete="family-name"
+          />
+
+          <TextInput
+            label="Nombre de usuario"
+            value={username}
+            onChange={setUsername}
+            placeholder="xandru"
+            autoComplete="username"
+          />
+
           <TextInput
             label="Correo electrónico"
             type="email"

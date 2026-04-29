@@ -13,6 +13,15 @@ def get_user_by_email(
     return query_result.scalar_one_or_none()
 
 
+def get_user_by_username(
+    db_session: Session,
+    username: str,
+) -> User | None:
+    statement = select(User).where(User.username == username)
+    query_result = db_session.execute(statement)
+    return query_result.scalar_one_or_none()
+
+
 def get_user_by_id(
     db_session: Session,
     user_id: int,
@@ -27,9 +36,15 @@ def create_user(
     email: str,
     password_hash: str,
     role: str = "user",
+    username: str | None = None,
+    first_name: str | None = None,
+    last_name: str | None = None,
 ) -> User:
     new_user = User(
         email=email,
+        username=username,
+        first_name=first_name,
+        last_name=last_name,
         password_hash=password_hash,
         role=role,
     )

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.security import create_access_token, hash_password, verify_password
-from app.crud.user import create_user, get_user_by_email
+from app.crud.user import create_user, get_user_by_email, get_user_by_username
 from app.db.database import get_db
 from app.db.models.user import User
 from app.schemas.auth import TokenResponse
@@ -12,18 +12,45 @@ from app.schemas.user import UserCreateRequest, UserLoginRequest, UserResponse
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register_user(user_data: UserCreateRequest, database_session: Session = Depends(get_db)) -> UserResponse:
-    user_with_same_email = get_user_by_email(db_session=database_session, email=user_data.email)
+def register_user(
+    user_data: UserCreateRequest,
+    database_session: Session = Depends(get_db),
+) -> UserResponse:
+    user_with_same_email = get_user_by_email(
+        db_session=database_session,
+        email=user_data.email,
+    )
+
     if user_with_same_email is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El email ya está registrado")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El email ya está registrado",
+        )
+
+    if user_data.username is not None:
+        user_with_same_username = get_user_by_username(
+            db_session=database_session,
+            username=user_data.username,
+        )
+
+        if user_with_same_username is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El nombre de usuario ya está registrado",
+            )
 
     hashed_user_password = hash_password(user_data.password)
+
     created_user = create_user(
-    db_session=database_session,
-    email=user_data.email,
-    password_hash=hashed_user_password,
-    role="user",
-)
+        db_session=database_session,
+        email=user_data.email,
+        password_hash=hashed_user_password,
+        role="user",
+        username=user_data.username,
+        first_name=user_data.first_name,
+        last_name=user_data.last_name,
+    )
+
     return UserResponse.model_validate(created_user)
 
 @router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
