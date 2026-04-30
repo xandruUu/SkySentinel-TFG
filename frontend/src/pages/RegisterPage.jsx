@@ -53,7 +53,7 @@ export default function RegisterPage() {
 
   return (
     <ScreenShell>
-      <Card>
+      <Card className="my-4">
         <HeaderBar title="Crear cuenta" onBack={() => navigate("/", { replace: true })} />
 
         <div className="mt-6">

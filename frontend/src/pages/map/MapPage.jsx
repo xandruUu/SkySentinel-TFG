@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { useLiveFlights } from "../../features/flights/useLiveFlights.js";
-import { useAuth } from "../../features/auth/useAuth.js";
+import { useAircraftAlerts } from "../../features/alerts/useAircraftAlerts.js";
 import avionMarker from "../../assets/avion1.png";
 
 const MADRID_BOUNDS = {
@@ -32,8 +32,49 @@ const ALERT_COLORS = [
   "#ec4899",
 ];
 
+const AIRCRAFT_MODELS = [
+  "A319",
+  "A320",
+  "A320NEO",
+  "A321",
+  "A321NEO",
+  "A330",
+  "A340",
+  "A350",
+  "A380",
+  "B737",
+  "B738",
+  "B38M",
+  "B747",
+  "B757",
+  "B767",
+  "B777",
+  "B787",
+  "E190",
+  "CRJ9",
+];
+
+const AIRLINES = [
+  "IBE",
+  "RYR",
+  "AEA",
+  "VLG",
+  "DLH",
+  "EZY",
+  "BAW",
+  "AFR",
+  "KLM",
+  "TAP",
+  "QTR",
+  "UAE",
+  "THY",
+];
+
 function isMobileViewport() {
-  return typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 767px)").matches
+  );
 }
 
 function normalizeText(value) {
@@ -41,8 +82,8 @@ function normalizeText(value) {
 }
 
 function matchesAlert(aircraft, alert) {
-  const alertModel = normalizeText(alert.aircraft_model);
-  const alertOperator = normalizeText(alert.operator_company);
+  const alertModel = normalizeText(alert.aircraft_model || alert.model);
+  const alertOperator = normalizeText(alert.operator_company || alert.operator);
 
   const aircraftModel = normalizeText(aircraft.model || aircraft.aircraft_model);
   const aircraftOperator = normalizeText(aircraft.operator_company);
@@ -84,7 +125,9 @@ function normalizeState(rawState) {
   if (!Array.isArray(rawState)) {
     const { longitude, latitude } = rawState;
 
-    if (typeof longitude !== "number" || typeof latitude !== "number") return null;
+    if (typeof longitude !== "number" || typeof latitude !== "number") {
+      return null;
+    }
 
     const model = rawState.model ?? rawState.aircraft_model ?? null;
 
@@ -113,7 +156,9 @@ function normalizeState(rawState) {
   const longitude = rawState[5];
   const latitude = rawState[6];
 
-  if (typeof longitude !== "number" || typeof latitude !== "number") return null;
+  if (typeof longitude !== "number" || typeof latitude !== "number") {
+    return null;
+  }
 
   return {
     icao24: String(rawState[0] || "").toLowerCase(),
@@ -172,6 +217,7 @@ function formatPositionSource(value) {
 function buildPopupHtml(aircraft) {
   const model = aircraft.aircraft_model || aircraft.model || "Modelo desconocido";
   const operator = aircraft.operator_company || "Operador desconocido";
+
   const alertLabel = aircraft.alert_label
     ? `<div style="margin-top:8px;display:inline-block;border-radius:999px;background:${aircraft.alert_color};color:white;padding:4px 8px;font-size:11px;font-weight:800;">Alerta: ${aircraft.alert_label}</div>`
     : "";
@@ -230,7 +276,10 @@ function toFeatureCollection(states, filters) {
 
       if (country.trim()) {
         const aircraftCountry = (aircraft.origin_country || "").toLowerCase();
-        if (!aircraftCountry.includes(country.trim().toLowerCase())) return false;
+
+        if (!aircraftCountry.includes(country.trim().toLowerCase())) {
+          return false;
+        }
       }
 
       const altitude = aircraft.geo_altitude ?? aircraft.baro_altitude;
@@ -246,9 +295,11 @@ function toFeatureCollection(states, filters) {
       }
 
       if (q) {
-        const haystack = `${aircraft.icao24} ${aircraft.callsign} ${aircraft.origin_country} ${
-          aircraft.model || ""
-        } ${aircraft.operator_company || ""} ${aircraft.registration || ""}`.toLowerCase();
+        const haystack = `${aircraft.icao24} ${aircraft.callsign} ${
+          aircraft.origin_country
+        } ${aircraft.model || ""} ${aircraft.operator_company || ""} ${
+          aircraft.registration || ""
+        }`.toLowerCase();
 
         if (!haystack.includes(q)) return false;
       }
@@ -278,7 +329,22 @@ function emptyFeatureCollection() {
   };
 }
 
-function FiltersPanel({ filters, setFilters, data, visibleAircraftCount }) {
+function FiltersPanel({
+  filters,
+  setFilters,
+  data,
+  visibleAircraftCount,
+  alerts,
+  alertsLoading,
+  alertsError,
+  selectedModel,
+  setSelectedModel,
+  selectedCompany,
+  setSelectedCompany,
+  submittingAlert,
+  onCreateAlert,
+  onDeleteAlert,
+}) {
   return (
     <div className="w-full rounded-3xl bg-white/92 p-4 shadow-xl ring-1 ring-slate-200 backdrop-blur">
       <h2 className="text-lg font-semibold text-slate-900">Filtros</h2>
@@ -289,7 +355,9 @@ function FiltersPanel({ filters, setFilters, data, visibleAircraftCount }) {
 
       <div className="mt-4 space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-800">Buscar</label>
+          <label className="mb-1 block text-sm font-medium text-slate-800">
+            Buscar
+          </label>
           <input
             value={filters.query}
             onChange={(event) =>
@@ -301,7 +369,9 @@ function FiltersPanel({ filters, setFilters, data, visibleAircraftCount }) {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-800">País</label>
+          <label className="mb-1 block text-sm font-medium text-slate-800">
+            País
+          </label>
           <input
             value={filters.country}
             onChange={(event) =>
@@ -404,10 +474,124 @@ function FiltersPanel({ filters, setFilters, data, visibleAircraftCount }) {
             type="checkbox"
             checked={filters.onlyWithCallsign}
             onChange={(event) =>
-              setFilters((prev) => ({ ...prev, onlyWithCallsign: event.target.checked }))
+              setFilters((prev) => ({
+                ...prev,
+                onlyWithCallsign: event.target.checked,
+              }))
             }
           />
         </label>
+
+        <div className="rounded-3xl bg-card p-4 ring-1 ring-primary/10">
+          <p className="text-sm font-black text-primary">Crear alerta</p>
+          <p className="mt-1 text-xs font-semibold text-muted">
+            Las alertas funcionan como filtros permanentes de vigilancia.
+          </p>
+
+          <div className="mt-4 space-y-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-800">
+                Modelo de aeronave
+              </label>
+              <select
+                value={selectedModel}
+                onChange={(event) => setSelectedModel(event.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none"
+              >
+                <option value="">Seleccionar modelo</option>
+                {AIRCRAFT_MODELS.map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={() => onCreateAlert("model")}
+                disabled={!selectedModel || submittingAlert}
+                className="mt-2 w-full rounded-2xl bg-primary px-4 py-3 text-sm font-black text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Crear alerta por modelo
+              </button>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-800">
+                Compañía / callsign
+              </label>
+              <select
+                value={selectedCompany}
+                onChange={(event) => setSelectedCompany(event.target.value)}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none"
+              >
+                <option value="">Seleccionar compañía</option>
+                {AIRLINES.map((company) => (
+                  <option key={company} value={company}>
+                    {company}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={() => onCreateAlert("company")}
+                disabled={!selectedCompany || submittingAlert}
+                className="mt-2 w-full rounded-2xl bg-primary px-4 py-3 text-sm font-black text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Crear alerta por compañía
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl bg-white p-4 ring-1 ring-primary/10">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-black text-primary">Alertas activas</p>
+            <span className="rounded-full bg-card px-2 py-1 text-xs font-black text-primary">
+              {alerts.length}
+            </span>
+          </div>
+
+          {alertsError && (
+            <p className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+              {alertsError}
+            </p>
+          )}
+
+          <div className="mt-3 space-y-2">
+            {alertsLoading && alerts.length === 0 && (
+              <p className="text-xs font-semibold text-muted">Cargando alertas...</p>
+            )}
+
+            {!alertsLoading && alerts.length === 0 && (
+              <p className="text-xs font-semibold text-muted">
+                No hay alertas creadas.
+              </p>
+            )}
+
+            {alerts.map((alert) => (
+              <div
+                key={alert.id || alert.alert_id}
+                className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 px-3 py-2"
+              >
+                <p className="truncate text-xs font-black text-ink">
+                  {alert.aircraft_model || alert.model
+                    ? `Modelo · ${alert.aircraft_model || alert.model}`
+                    : `Compañía · ${alert.operator_company || alert.operator || "—"}`}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => onDeleteAlert(alert.id || alert.alert_id)}
+                  className="shrink-0 rounded-xl px-2 py-1 text-xs font-black text-red-600 ring-1 ring-red-100 hover:bg-red-50"
+                >
+                  Quitar
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
 
         <button
           type="button"
@@ -441,9 +625,9 @@ function SelectionCard({ aircraft, expanded, setExpanded, onClose }) {
   )} · ${formatAltitude(aircraft.geo_altitude ?? aircraft.baro_altitude)}`;
 
   return (
-    <div className="absolute left-3 right-3 bottom-4 z-20 md:left-auto md:right-4 md:bottom-4 md:w-[380px] md:max-w-[calc(100vw-2rem)]">
+    <div className="absolute bottom-4 left-3 right-3 z-20 md:left-auto md:right-4 md:bottom-4 md:w-[380px] md:max-w-[calc(100vw-2rem)]">
       <div
-        className={`rounded-3xl bg-white/95 p-4 shadow-2xl ring-1 ring-slate-200 backdrop-blur ${
+        className={`panel-scroll-area rounded-3xl bg-white/95 p-4 shadow-2xl ring-1 ring-slate-200 backdrop-blur ${
           expanded ? "max-h-[52dvh] overflow-y-auto" : "overflow-hidden"
         } md:max-h-none`}
       >
@@ -495,7 +679,9 @@ function SelectionCard({ aircraft, expanded, setExpanded, onClose }) {
 
         {!expanded ? (
           <div className="pt-3">
-            <p className="text-sm font-semibold text-slate-800">{compactSummary}</p>
+            <p className="text-sm font-semibold text-slate-800">
+              {compactSummary}
+            </p>
             <p className="mt-2 text-xs text-slate-500">
               {formatCoord(aircraft.latitude)}, {formatCoord(aircraft.longitude)}
             </p>
@@ -504,12 +690,16 @@ function SelectionCard({ aircraft, expanded, setExpanded, onClose }) {
           <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <div>
               <p className="font-bold text-slate-700">País</p>
-              <p className="break-words text-slate-900">{aircraft.origin_country || "—"}</p>
+              <p className="break-words text-slate-900">
+                {aircraft.origin_country || "—"}
+              </p>
             </div>
 
             <div>
               <p className="font-bold text-slate-700">Estado</p>
-              <p className="text-slate-900">{aircraft.on_ground ? "En tierra" : "En vuelo"}</p>
+              <p className="text-slate-900">
+                {aircraft.on_ground ? "En tierra" : "En vuelo"}
+              </p>
             </div>
 
             <div>
@@ -524,12 +714,16 @@ function SelectionCard({ aircraft, expanded, setExpanded, onClose }) {
 
             <div>
               <p className="font-bold text-slate-700">Altitud geo</p>
-              <p className="text-slate-900">{formatAltitude(aircraft.geo_altitude)}</p>
+              <p className="text-slate-900">
+                {formatAltitude(aircraft.geo_altitude)}
+              </p>
             </div>
 
             <div>
               <p className="font-bold text-slate-700">Altitud baro</p>
-              <p className="text-slate-900">{formatAltitude(aircraft.baro_altitude)}</p>
+              <p className="text-slate-900">
+                {formatAltitude(aircraft.baro_altitude)}
+              </p>
             </div>
 
             <div>
@@ -559,7 +753,9 @@ function SelectionCard({ aircraft, expanded, setExpanded, onClose }) {
 
             <div>
               <p className="font-bold text-slate-700">Fuente posición</p>
-              <p className="text-slate-900">{formatPositionSource(aircraft.position_source)}</p>
+              <p className="text-slate-900">
+                {formatPositionSource(aircraft.position_source)}
+              </p>
             </div>
 
             <div>
@@ -578,13 +774,22 @@ export default function MapPage() {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
 
-  const { token } = useAuth();
-
   const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cardExpanded, setCardExpanded] = useState(!isMobileViewport());
-  const [alerts, setAlerts] = useState([]);
+
+  const {
+    alerts,
+    createAlert,
+    deleteAlert,
+    loading: alertsLoading,
+    error: alertsError,
+  } = useAircraftAlerts();
+
+  const [selectedModel, setSelectedModel] = useState("");
+  const [selectedCompany, setSelectedCompany] = useState("");
+  const [submittingAlert, setSubmittingAlert] = useState(false);
 
   const [filters, setFilters] = useState({
     query: "",
@@ -598,42 +803,25 @@ export default function MapPage() {
     maxSpeed: "",
   });
 
-  useEffect(() => {
-    if (!token) {
-      setAlerts([]);
-      return;
+  async function handleCreateAlert(type) {
+    if (submittingAlert) return;
+    if (type === "model" && !selectedModel) return;
+    if (type === "company" && !selectedCompany) return;
+
+    setSubmittingAlert(true);
+
+    try {
+      await createAlert({
+        model: type === "model" ? selectedModel : "",
+        operator: type === "company" ? selectedCompany : "",
+      });
+
+      setSelectedModel("");
+      setSelectedCompany("");
+    } finally {
+      setSubmittingAlert(false);
     }
-
-    let cancelled = false;
-
-    async function loadAlerts() {
-      try {
-        const response = await fetch("/api/alerts", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) return;
-
-        const payload = await response.json();
-
-        if (!cancelled) {
-          setAlerts(payload?.items || []);
-        }
-      } catch {
-        if (!cancelled) {
-          setAlerts([]);
-        }
-      }
-    }
-
-    void loadAlerts();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+  }
 
   const { data } = useLiveFlights({
     bounds: MADRID_BOUNDS,
@@ -670,7 +858,9 @@ export default function MapPage() {
           alert_color: ALERT_COLORS[matchedAlertIndex % ALERT_COLORS.length],
           alert_label:
             matchedAlert.aircraft_model ||
+            matchedAlert.model ||
             matchedAlert.operator_company ||
+            matchedAlert.operator ||
             "Alerta",
         },
       });
@@ -696,7 +886,8 @@ export default function MapPage() {
       : emptyFeatureCollection();
   }, [geojson, alertFeatureCollection, selectedId]);
 
-  const selectedAircraft = selectedFeatureCollection.features[0]?.properties || null;
+  const selectedAircraft =
+    selectedFeatureCollection.features[0]?.properties || null;
 
   useEffect(() => {
     if (selectedAircraft) {
@@ -797,10 +988,14 @@ export default function MapPage() {
               "interpolate",
               ["linear"],
               ["zoom"],
-              6, 17,
-              8, 23,
-              10, 29,
-              12, 35,
+              6,
+              17,
+              8,
+              23,
+              10,
+              29,
+              12,
+              35,
             ],
             "circle-color": ["get", "alert_color"],
             "circle-opacity": 0.16,
@@ -818,10 +1013,14 @@ export default function MapPage() {
               "interpolate",
               ["linear"],
               ["zoom"],
-              6, 15,
-              8, 20,
-              10, 24,
-              12, 30,
+              6,
+              15,
+              8,
+              20,
+              10,
+              24,
+              12,
+              30,
             ],
             "circle-color": "#f97316",
             "circle-opacity": 0.18,
@@ -840,10 +1039,14 @@ export default function MapPage() {
               "interpolate",
               ["linear"],
               ["zoom"],
-              6, 0.06,
-              8, 0.075,
-              10, 0.09,
-              12, 0.1125,
+              6,
+              0.06,
+              8,
+              0.075,
+              10,
+              0.09,
+              12,
+              0.1125,
             ],
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -906,20 +1109,29 @@ export default function MapPage() {
 
   const visibleAircraftCount = geojson.features.length;
 
-  return (
-    <div className="relative bg-slate-100">
-      <div
-        ref={mapContainerRef}
-        className="h-[calc(100dvh-112px)] min-h-[620px] w-full"
-      />
+  const filterPanelProps = {
+    filters,
+    setFilters,
+    data,
+    visibleAircraftCount,
+    alerts,
+    alertsLoading,
+    alertsError,
+    selectedModel,
+    setSelectedModel,
+    selectedCompany,
+    setSelectedCompany,
+    submittingAlert,
+    onCreateAlert: handleCreateAlert,
+    onDeleteAlert: deleteAlert,
+  };
 
-      <div className="absolute left-4 top-4 z-10 hidden w-[360px] max-w-[calc(100vw-2rem)] md:block">
-        <FiltersPanel
-          filters={filters}
-          setFilters={setFilters}
-          data={data}
-          visibleAircraftCount={visibleAircraftCount}
-        />
+  return (
+    <div className="relative h-[calc(100dvh-73px)] overflow-hidden bg-slate-100">
+      <div ref={mapContainerRef} className="map-touch-area h-full w-full" />
+
+      <div className="panel-scroll-area absolute left-4 top-4 z-10 hidden max-h-[calc(100dvh-120px)] w-[360px] max-w-[calc(100vw-2rem)] overflow-y-auto md:block">
+        <FiltersPanel {...filterPanelProps} />
       </div>
 
       <button
@@ -931,8 +1143,14 @@ export default function MapPage() {
       </button>
 
       {filtersOpen && (
-        <div className="absolute inset-0 z-40 bg-black/35 backdrop-blur-[2px] md:hidden">
-          <div className="absolute left-0 top-0 h-full w-[88%] max-w-[360px] overflow-y-auto bg-white p-4 shadow-2xl">
+        <div
+          className="absolute inset-0 z-40 overflow-hidden bg-black/35 backdrop-blur-[2px] md:hidden"
+          onTouchMove={(event) => event.preventDefault()}
+        >
+          <div
+            className="panel-scroll-area absolute left-0 top-0 h-full w-[88%] max-w-[360px] overflow-y-auto bg-white p-4 shadow-2xl"
+            onTouchMove={(event) => event.stopPropagation()}
+          >
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-extrabold text-primary">Filtros</h2>
               <button
@@ -944,12 +1162,7 @@ export default function MapPage() {
               </button>
             </div>
 
-            <FiltersPanel
-              filters={filters}
-              setFilters={setFilters}
-              data={data}
-              visibleAircraftCount={visibleAircraftCount}
-            />
+            <FiltersPanel {...filterPanelProps} />
           </div>
         </div>
       )}
