@@ -23,6 +23,11 @@ const SELECTED_LAYER_ID = "selected-aircraft-halo";
 
 const AIRCRAFT_IMAGE_ID = "aircraft-marker-image";
 
+const MIN_SPEED_KMH = 0;
+const MAX_SPEED_KMH = 1050;
+const MIN_ALTITUDE_M = 0;
+const MAX_ALTITUDE_M = 13000;
+
 const ALERT_COLORS = [
   "#ef4444",
   "#a855f7",
@@ -70,6 +75,84 @@ const AIRLINES = [
   "THY",
 ];
 
+const COUNTRIES = [
+  { value: "", label: "🌍 Todos los países" },
+
+  // Europa
+  { value: "Spain", label: "🇪🇸 Spain" },
+  { value: "France", label: "🇫🇷 France" },
+  { value: "Germany", label: "🇩🇪 Germany" },
+  { value: "United Kingdom", label: "🇬🇧 United Kingdom" },
+  { value: "Italy", label: "🇮🇹 Italy" },
+  { value: "Portugal", label: "🇵🇹 Portugal" },
+  { value: "Netherlands", label: "🇳🇱 Netherlands" },
+  { value: "Belgium", label: "🇧🇪 Belgium" },
+  { value: "Ireland", label: "🇮🇪 Ireland" },
+  { value: "Switzerland", label: "🇨🇭 Switzerland" },
+  { value: "Austria", label: "🇦🇹 Austria" },
+  { value: "Poland", label: "🇵🇱 Poland" },
+  { value: "Denmark", label: "🇩🇰 Denmark" },
+  { value: "Norway", label: "🇳🇴 Norway" },
+  { value: "Sweden", label: "🇸🇪 Sweden" },
+  { value: "Finland", label: "🇫🇮 Finland" },
+  { value: "Czech Republic", label: "🇨🇿 Czech Republic" },
+  { value: "Greece", label: "🇬🇷 Greece" },
+  { value: "Hungary", label: "🇭🇺 Hungary" },
+  { value: "Romania", label: "🇷🇴 Romania" },
+  { value: "Bulgaria", label: "🇧🇬 Bulgaria" },
+  { value: "Croatia", label: "🇭🇷 Croatia" },
+  { value: "Serbia", label: "🇷🇸 Serbia" },
+  { value: "Slovakia", label: "🇸🇰 Slovakia" },
+  { value: "Slovenia", label: "🇸🇮 Slovenia" },
+  { value: "Estonia", label: "🇪🇪 Estonia" },
+  { value: "Latvia", label: "🇱🇻 Latvia" },
+  { value: "Lithuania", label: "🇱🇹 Lithuania" },
+  { value: "Luxembourg", label: "🇱🇺 Luxembourg" },
+  { value: "Iceland", label: "🇮🇸 Iceland" },
+  { value: "Malta", label: "🇲🇹 Malta" },
+  { value: "Cyprus", label: "🇨🇾 Cyprus" },
+  { value: "Ukraine", label: "🇺🇦 Ukraine" },
+
+  // América
+  { value: "United States", label: "🇺🇸 United States" },
+  { value: "Canada", label: "🇨🇦 Canada" },
+  { value: "Mexico", label: "🇲🇽 Mexico" },
+  { value: "Brazil", label: "🇧🇷 Brazil" },
+  { value: "Argentina", label: "🇦🇷 Argentina" },
+  { value: "Chile", label: "🇨🇱 Chile" },
+  { value: "Colombia", label: "🇨🇴 Colombia" },
+  { value: "Peru", label: "🇵🇪 Peru" },
+
+  // Oriente Medio / Asia
+  { value: "Turkey", label: "🇹🇷 Turkey" },
+  { value: "Qatar", label: "🇶🇦 Qatar" },
+  { value: "United Arab Emirates", label: "🇦🇪 United Arab Emirates" },
+  { value: "Saudi Arabia", label: "🇸🇦 Saudi Arabia" },
+  { value: "Israel", label: "🇮🇱 Israel" },
+  { value: "Jordan", label: "🇯🇴 Jordan" },
+  { value: "China", label: "🇨🇳 China" },
+  { value: "Japan", label: "🇯🇵 Japan" },
+  { value: "South Korea", label: "🇰🇷 South Korea" },
+  { value: "India", label: "🇮🇳 India" },
+  { value: "Singapore", label: "🇸🇬 Singapore" },
+  { value: "Thailand", label: "🇹🇭 Thailand" },
+  { value: "Malaysia", label: "🇲🇾 Malaysia" },
+  { value: "Indonesia", label: "🇮🇩 Indonesia" },
+
+  // África
+  { value: "Morocco", label: "🇲🇦 Morocco" },
+  { value: "Algeria", label: "🇩🇿 Algeria" },
+  { value: "Tunisia", label: "🇹🇳 Tunisia" },
+  { value: "Egypt", label: "🇪🇬 Egypt" },
+  { value: "South Africa", label: "🇿🇦 South Africa" },
+  { value: "Ethiopia", label: "🇪🇹 Ethiopia" },
+  { value: "Kenya", label: "🇰🇪 Kenya" },
+
+  // Oceanía
+  { value: "Australia", label: "🇦🇺 Australia" },
+  { value: "New Zealand", label: "🇳🇿 New Zealand" },
+];
+
 function isMobileViewport() {
   return (
     typeof window !== "undefined" &&
@@ -79,6 +162,15 @@ function isMobileViewport() {
 
 function normalizeText(value) {
   return String(value || "").trim().toUpperCase();
+}
+
+function clampNumber(value, min, max) {
+  if (value === "") return "";
+  const parsedValue = Number(value);
+
+  if (!Number.isFinite(parsedValue)) return "";
+
+  return String(Math.min(max, Math.max(min, parsedValue)));
 }
 
 function matchesAlert(aircraft, alert) {
@@ -246,7 +338,6 @@ function toFeatureCollection(states, filters) {
     query,
     hideGround,
     onlyInAir,
-    onlyWithCallsign,
     country,
     minAltitude,
     maxAltitude,
@@ -272,14 +363,10 @@ function toFeatureCollection(states, filters) {
     .filter((aircraft) => {
       if (hideGround && aircraft.on_ground) return false;
       if (onlyInAir && aircraft.on_ground) return false;
-      if (onlyWithCallsign && !aircraft.callsign) return false;
 
-      if (country.trim()) {
+      if (country) {
         const aircraftCountry = (aircraft.origin_country || "").toLowerCase();
-
-        if (!aircraftCountry.includes(country.trim().toLowerCase())) {
-          return false;
-        }
+        if (aircraftCountry !== country.toLowerCase()) return false;
       }
 
       const altitude = aircraft.geo_altitude ?? aircraft.baro_altitude;
@@ -290,14 +377,14 @@ function toFeatureCollection(states, filters) {
       }
 
       if (typeof aircraft.velocity === "number") {
-        if (hasMinSpeed && aircraft.velocity < parsedMinSpeed) return false;
-        if (hasMaxSpeed && aircraft.velocity > parsedMaxSpeed) return false;
+        const speedKmh = aircraft.velocity * 3.6;
+
+        if (hasMinSpeed && speedKmh < parsedMinSpeed) return false;
+        if (hasMaxSpeed && speedKmh > parsedMaxSpeed) return false;
       }
 
       if (q) {
         const haystack = `${aircraft.icao24} ${aircraft.callsign} ${
-          aircraft.origin_country
-        } ${aircraft.model || ""} ${aircraft.operator_company || ""} ${
           aircraft.registration || ""
         }`.toLowerCase();
 
@@ -356,93 +443,152 @@ function FiltersPanel({
       <div className="mt-4 space-y-4">
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-800">
-            Buscar
+            Buscar aeronave
           </label>
           <input
             value={filters.query}
             onChange={(event) =>
               setFilters((prev) => ({ ...prev, query: event.target.value }))
             }
-            placeholder="callsign, icao24, país..."
+            placeholder="Callsign, ICAO24 o matrícula"
             className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
           />
+          <p className="mt-1 text-xs font-semibold text-slate-500">
+            Este buscador solo filtra por identificadores. País, velocidad y altitud tienen filtros propios.
+          </p>
         </div>
 
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-800">
-            País
+            País de origen
           </label>
-          <input
+          <select
             value={filters.country}
             onChange={(event) =>
               setFilters((prev) => ({ ...prev, country: event.target.value }))
             }
-            placeholder="Spain, France, Germany..."
-            className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
-          />
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none"
+          >
+            {COUNTRIES.map((country) => (
+              <option key={country.label} value={country.value}>
+                {country.label}
+              </option>
+            ))}
+          </select>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">
-              Altitud mín.
-            </label>
-            <input
-              type="number"
-              value={filters.minAltitude}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, minAltitude: event.target.value }))
-              }
-              placeholder="sin mínimo"
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
-            />
-          </div>
+        <div className="rounded-3xl bg-card p-4 ring-1 ring-primary/10">
+          <p className="text-sm font-black text-primary">Altitud</p>
+          <p className="mt-1 text-xs font-semibold text-muted">
+            Rango permitido: {MIN_ALTITUDE_M} m - {MAX_ALTITUDE_M.toLocaleString("es-ES")} m.
+            0 m representa tierra y 13.000 m equivale aproximadamente a 41.000 ft.
+          </p>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">
-              Altitud máx.
-            </label>
-            <input
-              type="number"
-              value={filters.maxAltitude}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, maxAltitude: event.target.value }))
-              }
-              placeholder="sin máximo"
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
-            />
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-800">
+                Mínima
+              </label>
+              <input
+                type="number"
+                min={MIN_ALTITUDE_M}
+                max={MAX_ALTITUDE_M}
+                value={filters.minAltitude}
+                onChange={(event) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    minAltitude: clampNumber(
+                      event.target.value,
+                      MIN_ALTITUDE_M,
+                      MAX_ALTITUDE_M
+                    ),
+                  }))
+                }
+                placeholder="0 m"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-800">
+                Máxima
+              </label>
+              <input
+                type="number"
+                min={MIN_ALTITUDE_M}
+                max={MAX_ALTITUDE_M}
+                value={filters.maxAltitude}
+                onChange={(event) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    maxAltitude: clampNumber(
+                      event.target.value,
+                      MIN_ALTITUDE_M,
+                      MAX_ALTITUDE_M
+                    ),
+                  }))
+                }
+                placeholder="13000 m"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
+              />
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">
-              Velocidad mín.
-            </label>
-            <input
-              type="number"
-              value={filters.minSpeed}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, minSpeed: event.target.value }))
-              }
-              placeholder="sin mínimo"
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
-            />
-          </div>
+        <div className="rounded-3xl bg-card p-4 ring-1 ring-primary/10">
+          <p className="text-sm font-black text-primary">Velocidad</p>
+          <p className="mt-1 text-xs font-semibold text-muted">
+            Rango permitido: {MIN_SPEED_KMH} km/h - {MAX_SPEED_KMH} km/h.
+          </p>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-800">
-              Velocidad máx.
-            </label>
-            <input
-              type="number"
-              value={filters.maxSpeed}
-              onChange={(event) =>
-                setFilters((prev) => ({ ...prev, maxSpeed: event.target.value }))
-              }
-              placeholder="sin máximo"
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
-            />
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-800">
+                Mínima
+              </label>
+              <input
+                type="number"
+                min={MIN_SPEED_KMH}
+                max={MAX_SPEED_KMH}
+                value={filters.minSpeed}
+                onChange={(event) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    minSpeed: clampNumber(
+                      event.target.value,
+                      MIN_SPEED_KMH,
+                      MAX_SPEED_KMH
+                    ),
+                  }))
+                }
+                placeholder="0 km/h"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-800">
+                Máxima
+              </label>
+              <input
+                type="number"
+                min={MIN_SPEED_KMH}
+                max={MAX_SPEED_KMH}
+                value={filters.maxSpeed}
+                onChange={(event) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    maxSpeed: clampNumber(
+                      event.target.value,
+                      MIN_SPEED_KMH,
+                      MAX_SPEED_KMH
+                    ),
+                  }))
+                }
+                placeholder="1050 km/h"
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none"
+              />
+            </div>
           </div>
         </div>
 
@@ -464,20 +610,6 @@ function FiltersPanel({
             checked={filters.onlyInAir}
             onChange={(event) =>
               setFilters((prev) => ({ ...prev, onlyInAir: event.target.checked }))
-            }
-          />
-        </label>
-
-        <label className="flex items-center justify-between text-sm text-slate-800">
-          <span>Solo con callsign</span>
-          <input
-            type="checkbox"
-            checked={filters.onlyWithCallsign}
-            onChange={(event) =>
-              setFilters((prev) => ({
-                ...prev,
-                onlyWithCallsign: event.target.checked,
-              }))
             }
           />
         </label>
@@ -600,7 +732,6 @@ function FiltersPanel({
               query: "",
               hideGround: false,
               onlyInAir: false,
-              onlyWithCallsign: false,
               country: "",
               minAltitude: "",
               maxAltitude: "",
@@ -795,7 +926,6 @@ export default function MapPage() {
     query: "",
     hideGround: false,
     onlyInAir: false,
-    onlyWithCallsign: false,
     country: "",
     minAltitude: "",
     maxAltitude: "",
