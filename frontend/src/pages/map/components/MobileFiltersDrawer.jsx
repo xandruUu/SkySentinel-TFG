@@ -8,9 +8,9 @@ export default function MobileFiltersDrawer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm md:hidden">
-      <div className="absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-hidden rounded-t-[32px] bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+    <div className="fixed inset-0 z-40 bg-white md:hidden">
+      <div className="flex h-full flex-col">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
               Panel
@@ -27,7 +27,7 @@ export default function MobileFiltersDrawer({
           </button>
         </div>
 
-        <div className="panel-scroll-area max-h-[calc(88dvh-68px)] overflow-y-auto p-3">
+        <div className="panel-scroll-area min-h-0 flex-1 overflow-y-auto bg-slate-50 p-3">
           <FiltersPanel {...filterPanelProps} />
         </div>
       </div>

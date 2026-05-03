@@ -1,52 +1,44 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-
-import maplibregl from "maplibre-gl";
-
-import { useLiveFlights } from "../../features/flights/useLiveFlights.js";
+import { useEffect, useMemo, useState } from "react";
 
 import { useAircraftAlerts } from "../../features/alerts/useAircraftAlerts.js";
+import { useLiveFlights } from "../../features/flights/useLiveFlights.js";
 
-import avionMarker from "../../assets/avion1.png";
-
-import {
-  emptyFeatureCollection,
-  toFeatureCollection,
-} from "./utils/aircraftGeojson.js";
-
-import {
-  AIRCRAFT_IMAGE_ID,
-  AIRCRAFT_LAYER_ID,
-  AIRCRAFT_SOURCE_ID,
-  ALERT_LAYER_ID,
-  ALERT_SOURCE_ID,
-  MADRID_BOUNDS,
-  MADRID_CENTER,
-  SELECTED_LAYER_ID,
-  SELECTED_SOURCE_ID,
-} from "./constants/mapConstants.js";
-
-import {
-  isMobileViewport,
-} from "./utils/mapFormatters.js";
-
-import { buildRasterStyle } from "./utils/mapStyle.js";
-
+import FiltersPanel from "./components/FiltersPanel.jsx";
+import MobileFiltersDrawer from "./components/MobileFiltersDrawer.jsx";
+import SelectionCard from "./components/SelectionCard.jsx";
+import { MADRID_BOUNDS } from "./constants/mapConstants.js";
+import { useAircraftMap } from "./hooks/useAircraftMap.js";
+import { toFeatureCollection } from "./utils/aircraftGeojson.js";
 import {
   buildAlertFeatureCollection,
   buildSelectedFeatureCollection,
 } from "./utils/alertMatching.js";
+import { isMobileViewport } from "./utils/mapFormatters.js";
 
-import SelectionCard from "./components/SelectionCard.jsx";
-import FiltersPanel from "./components/FiltersPanel.jsx";
-import MobileFiltersDrawer from "./components/MobileFiltersDrawer.jsx";
-import { buildPopupHtml } from "./utils/aircraftPopupHtml.js";
+function normalizeAlertValue(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function hasDuplicateAlert({ alerts, type, selectedModel, selectedCompany }) {
+  const selectedValue = normalizeAlertValue(
+    type === "model" ? selectedModel : selectedCompany
+  );
+
+  if (!selectedValue) return false;
+
+  return alerts.some((alert) => {
+    if (alert.is_active === false) return false;
+
+    const alertValue =
+      type === "model"
+        ? alert.aircraft_model || alert.model || ""
+        : alert.operator_company || alert.operator || "";
+
+    return normalizeAlertValue(alertValue) === selectedValue;
+  });
+}
 
 export default function MapPage() {
-  const mapContainerRef = useRef(null);
-  const mapRef = useRef(null);
-  const popupRef = useRef(null);
-
-  const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cardExpanded, setCardExpanded] = useState(!isMobileViewport());
@@ -74,10 +66,63 @@ export default function MapPage() {
     maxSpeed: "",
   });
 
+  const { data } = useLiveFlights({
+    bounds: MADRID_BOUNDS,
+    refreshMs: 15000,
+    enabled: true,
+  });
+
+  const rawStates = data?.states || [];
+
+  const geojson = useMemo(() => {
+    return toFeatureCollection(rawStates, filters);
+  }, [rawStates, filters]);
+
+  const alertFeatureCollection = useMemo(() => {
+    return buildAlertFeatureCollection(geojson, alerts);
+  }, [geojson, alerts]);
+
+  const selectedFeatureCollection = useMemo(() => {
+    return buildSelectedFeatureCollection({
+      selectedId,
+      geojson,
+      alertFeatureCollection,
+    });
+  }, [selectedId, geojson, alertFeatureCollection]);
+
+  const selectedAircraft =
+    selectedFeatureCollection.features[0]?.properties || null;
+
+  const { mapContainerRef, closePopup } = useAircraftMap({
+    geojson,
+    alertFeatureCollection,
+    selectedFeatureCollection,
+    onSelectAircraft: setSelectedId,
+    onCardExpandedChange: setCardExpanded,
+  });
+
+  useEffect(() => {
+    if (selectedAircraft) {
+      setCardExpanded(!isMobileViewport());
+    }
+  }, [selectedAircraft]);
+
   async function handleCreateAlert(type) {
     if (submittingAlert) return;
     if (type === "model" && !selectedModel) return;
     if (type === "company" && !selectedCompany) return;
+
+    const alreadyExists = hasDuplicateAlert({
+      alerts,
+      type,
+      selectedModel,
+      selectedCompany,
+    });
+
+    if (alreadyExists) {
+      window.alert("Ya existe una alerta activa igual.");
+      return;
+    }
 
     setSubmittingAlert(true);
 
@@ -93,251 +138,6 @@ export default function MapPage() {
       setSubmittingAlert(false);
     }
   }
-
-  const { data } = useLiveFlights({
-    bounds: MADRID_BOUNDS,
-    refreshMs: 15000,
-    enabled: true,
-  });
-
-  const rawStates = data?.states || [];
-
-  const geojson = useMemo(() => {
-    return toFeatureCollection(rawStates, filters);
-  }, [rawStates, filters]);
-
-const alertFeatureCollection = useMemo(() => {
-  return buildAlertFeatureCollection(geojson, alerts);
-}, [geojson, alerts]);
-
-const selectedFeatureCollection = useMemo(() => {
-  return buildSelectedFeatureCollection({
-    selectedId,
-    geojson,
-    alertFeatureCollection,
-  });
-}, [selectedId, geojson, alertFeatureCollection]);
-
-  const selectedAircraft =
-    selectedFeatureCollection.features[0]?.properties || null;
-
-  useEffect(() => {
-    if (selectedAircraft) {
-      setCardExpanded(!isMobileViewport());
-    }
-  }, [selectedAircraft]);
-
-  useEffect(() => {
-    if (!mapContainerRef.current || mapRef.current) return;
-
-    const map = new maplibregl.Map({
-      container: mapContainerRef.current,
-      style: buildRasterStyle(),
-      center: MADRID_CENTER,
-      zoom: 7,
-      attributionControl: true,
-    });
-
-    map.addControl(new maplibregl.NavigationControl(), "top-right");
-
-    const closePopup = () => {
-      popupRef.current?.remove();
-      popupRef.current = null;
-    };
-
-    const focusAircraft = (coordinates) => {
-      const mobile = isMobileViewport();
-
-      map.easeTo({
-        center: coordinates,
-        zoom: Math.max(map.getZoom(), mobile ? 8 : 8.2),
-        duration: 450,
-        essential: true,
-        padding: mobile
-          ? { top: 90, right: 20, bottom: 250, left: 20 }
-          : { top: 40, right: 430, bottom: 40, left: 40 },
-      });
-    };
-
-    const onAircraftClick = (event) => {
-      const feature = event.features?.[0];
-      if (!feature) return;
-
-      const aircraft = feature.properties || {};
-      const coordinates = feature.geometry?.coordinates;
-      if (!coordinates) return;
-
-      setSelectedId(aircraft.icao24 || null);
-      setCardExpanded(!isMobileViewport());
-      closePopup();
-
-      const popup = new maplibregl.Popup({
-        closeButton: false,
-        closeOnClick: false,
-        offset: 18,
-        maxWidth: "300px",
-      })
-        .setLngLat(coordinates)
-        .setHTML(buildPopupHtml(aircraft))
-        .addTo(map);
-
-      popupRef.current = popup;
-      focusAircraft(coordinates);
-    };
-
-    map.on("load", () => {
-      setMapLoaded(true);
-
-      map.addSource(AIRCRAFT_SOURCE_ID, {
-        type: "geojson",
-        data: emptyFeatureCollection(),
-      });
-
-      map.addSource(ALERT_SOURCE_ID, {
-        type: "geojson",
-        data: emptyFeatureCollection(),
-      });
-
-      map.addSource(SELECTED_SOURCE_ID, {
-        type: "geojson",
-        data: emptyFeatureCollection(),
-      });
-
-      const image = new Image();
-      image.crossOrigin = "anonymous";
-
-      image.onload = () => {
-        if (!map.hasImage(AIRCRAFT_IMAGE_ID)) {
-          map.addImage(AIRCRAFT_IMAGE_ID, image);
-        }
-
-        map.addLayer({
-          id: ALERT_LAYER_ID,
-          type: "circle",
-          source: ALERT_SOURCE_ID,
-          paint: {
-            "circle-radius": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              6,
-              17,
-              8,
-              23,
-              10,
-              29,
-              12,
-              35,
-            ],
-            "circle-color": ["get", "alert_color"],
-            "circle-opacity": 0.16,
-            "circle-stroke-color": ["get", "alert_color"],
-            "circle-stroke-width": 2,
-          },
-        });
-
-        map.addLayer({
-          id: SELECTED_LAYER_ID,
-          type: "circle",
-          source: SELECTED_SOURCE_ID,
-          paint: {
-            "circle-radius": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              6,
-              15,
-              8,
-              20,
-              10,
-              24,
-              12,
-              30,
-            ],
-            "circle-color": "#f97316",
-            "circle-opacity": 0.18,
-            "circle-stroke-color": "#ea580c",
-            "circle-stroke-width": 2,
-          },
-        });
-
-        map.addLayer({
-          id: AIRCRAFT_LAYER_ID,
-          type: "symbol",
-          source: AIRCRAFT_SOURCE_ID,
-          layout: {
-            "icon-image": AIRCRAFT_IMAGE_ID,
-            "icon-size": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              6,
-              0.06,
-              8,
-              0.075,
-              10,
-              0.09,
-              12,
-              0.1125,
-            ],
-            "icon-allow-overlap": true,
-            "icon-ignore-placement": true,
-            "icon-anchor": "center",
-            "icon-rotate": ["coalesce", ["get", "true_track"], 0],
-            "icon-rotation-alignment": "map",
-          },
-        });
-
-        map.on("click", AIRCRAFT_LAYER_ID, onAircraftClick);
-
-        map.on("mouseenter", AIRCRAFT_LAYER_ID, () => {
-          map.getCanvas().style.cursor = "pointer";
-        });
-
-        map.on("mouseleave", AIRCRAFT_LAYER_ID, () => {
-          map.getCanvas().style.cursor = "";
-        });
-      };
-
-      image.src = avionMarker;
-    });
-
-    map.on("click", (event) => {
-      const features = map.queryRenderedFeatures(event.point, {
-        layers: [AIRCRAFT_LAYER_ID],
-      });
-
-      if (features.length === 0) {
-        setSelectedId(null);
-        closePopup();
-      }
-    });
-
-    mapRef.current = map;
-
-    return () => {
-      popupRef.current?.remove();
-      popupRef.current = null;
-      map.remove();
-      mapRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapLoaded) return;
-
-    map.getSource(AIRCRAFT_SOURCE_ID)?.setData(geojson);
-    map.getSource(ALERT_SOURCE_ID)?.setData(alertFeatureCollection);
-    map.getSource(SELECTED_SOURCE_ID)?.setData(selectedFeatureCollection);
-  }, [geojson, alertFeatureCollection, selectedFeatureCollection, mapLoaded]);
-
-  useEffect(() => {
-    if (selectedFeatureCollection.features.length > 0) return;
-
-    popupRef.current?.remove();
-    popupRef.current = null;
-  }, [selectedFeatureCollection]);
 
   const visibleAircraftCount = geojson.features.length;
 
@@ -374,11 +174,11 @@ const selectedFeatureCollection = useMemo(() => {
         Filtros
       </button>
 
-<MobileFiltersDrawer
-  open={filtersOpen}
-  onClose={() => setFiltersOpen(false)}
-  filterPanelProps={filterPanelProps}
-/>
+      <MobileFiltersDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        filterPanelProps={filterPanelProps}
+      />
 
       <SelectionCard
         aircraft={selectedAircraft}
@@ -386,8 +186,7 @@ const selectedFeatureCollection = useMemo(() => {
         setExpanded={setCardExpanded}
         onClose={() => {
           setSelectedId(null);
-          popupRef.current?.remove();
-          popupRef.current = null;
+          closePopup();
         }}
       />
     </div>
