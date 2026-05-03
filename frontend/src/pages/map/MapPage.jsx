@@ -38,6 +38,7 @@ import {
 
 import SelectionCard from "./components/SelectionCard.jsx";
 import FiltersPanel from "./components/FiltersPanel.jsx";
+import MobileFiltersDrawer from "./components/MobileFiltersDrawer.jsx";
 
 function buildPopupHtml(aircraft) {
   const model = aircraft.aircraft_model || aircraft.model || "Modelo desconocido";
@@ -399,30 +400,11 @@ const selectedFeatureCollection = useMemo(() => {
         Filtros
       </button>
 
-      {filtersOpen && (
-        <div
-          className="absolute inset-0 z-40 overflow-hidden bg-black/35 backdrop-blur-[2px] md:hidden"
-          onTouchMove={(event) => event.preventDefault()}
-        >
-          <div
-            className="panel-scroll-area absolute left-0 top-0 h-full w-[88%] max-w-[360px] overflow-y-auto bg-white p-4 shadow-2xl"
-            onTouchMove={(event) => event.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-extrabold text-primary">Filtros</h2>
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(false)}
-                className="rounded-2xl px-3 py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <FiltersPanel {...filterPanelProps} />
-          </div>
-        </div>
-      )}
+<MobileFiltersDrawer
+  open={filtersOpen}
+  onClose={() => setFiltersOpen(false)}
+  filterPanelProps={filterPanelProps}
+/>
 
       <SelectionCard
         aircraft={selectedAircraft}
