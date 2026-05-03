@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Bell, BellOff } from "lucide-react";
+
 import { useAuth } from "../../features/auth/useAuth.js";
 
 function getNotificationStatus() {
@@ -71,7 +72,6 @@ export default function AppLayout() {
   const profileButtonRef = useRef(null);
   const closeButtonRef = useRef(null);
 
-  const isHomeRoute = location.pathname.startsWith("/app/home");
   const isMapRoute = location.pathname.startsWith("/app/map");
 
   const fullName = useMemo(() => {
@@ -87,7 +87,6 @@ export default function AppLayout() {
     setProfileOpen(true);
   };
 
-  const goHome = () => navigate("/app/home");
   const goMap = () => navigate("/app/map");
 
   const doLogout = async () => {
@@ -147,10 +146,6 @@ export default function AppLayout() {
       <header className="sticky top-0 z-30 border-b border-primary/10 bg-white/90 backdrop-blur">
         <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3 sm:py-4">
           <div className="flex justify-self-start gap-2">
-            <NavPill active={isHomeRoute} onClick={goHome}>
-              Inicio
-            </NavPill>
-
             <NavPill active={isMapRoute} onClick={goMap}>
               Mapa
             </NavPill>
@@ -159,8 +154,8 @@ export default function AppLayout() {
           <button
             type="button"
             className="justify-self-center text-2xl font-black tracking-tight text-primary transition hover:opacity-90 sm:text-3xl"
-            onClick={goHome}
-            aria-label="Ir al panel principal de SkySentinel"
+            onClick={goMap}
+            aria-label="Ir al mapa de SkySentinel"
           >
             SkySentinel
           </button>

@@ -1,17 +1,22 @@
 import { useState } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
-import LandingPage from "../pages/LandingPage.jsx";
-import LoginPage from "../pages/LoginPage.jsx";
-import RegisterPage from "../pages/RegisterPage.jsx";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useNavigate,
+} from "react-router-dom";
+
+import AppLayout from "./layouts/AppLayout.jsx";
 import { AuthProvider } from "../features/auth/authProvider.jsx";
 import { useAuth } from "../features/auth/useAuth.js";
-import RequireAuth from "../routes/requireAuth.jsx";
-import PublicOnly from "../routes/PublicOnly.jsx";
-import AppLayout from "./layouts/AppLayout.jsx";
-
-import HomePage from "../pages/home/HomePage.jsx";
+import LandingPage from "../pages/LandingPage.jsx";
+import LoginPage from "../pages/LoginPage.jsx";
 import MapPage from "../pages/map/MapPage.jsx";
 import ProfilePage from "../pages/profile/ProfilePage.jsx";
+import RegisterPage from "../pages/RegisterPage.jsx";
+import PublicOnly from "../routes/PublicOnly.jsx";
+import RequireAuth from "../routes/requireAuth.jsx";
 
 function LandingRoute() {
   const [sliderResetKey, setSliderResetKey] = useState(0);
@@ -27,12 +32,12 @@ function LandingRoute() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/app/home" replace />;
+    return <Navigate to="/app/map" replace />;
   }
 
   const goLogin = () => navigate("/login");
   const goRegister = () => navigate("/register");
-  const goApp = () => navigate("/app/home", { replace: true });
+  const goApp = () => navigate("/app/map", { replace: true });
 
   const doLogout = async () => {
     await logout();
@@ -86,8 +91,8 @@ export default function App() {
               </RequireAuth>
             }
           >
-            <Route index element={<Navigate to="home" replace />} />
-            <Route path="home" element={<HomePage />} />
+            <Route index element={<Navigate to="map" replace />} />
+            <Route path="home" element={<Navigate to="../map" replace />} />
             <Route path="map" element={<MapPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>

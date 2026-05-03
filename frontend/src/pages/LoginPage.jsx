@@ -30,7 +30,7 @@ export default function LoginPage() {
       await login({ email, password: pass });
 
       // Importante: replace => el login NO queda en el historial
-      navigate("/app/home", { replace: true });
+      navigate("/app/map", { replace: true });
     } catch (err) {
       setErrorMsg(err?.message || "No se ha podido iniciar sesión.");
     } finally {
