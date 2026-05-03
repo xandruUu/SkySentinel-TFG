@@ -3,175 +3,37 @@ import maplibregl from "maplibre-gl";
 import { useLiveFlights } from "../../features/flights/useLiveFlights.js";
 import { useAircraftAlerts } from "../../features/alerts/useAircraftAlerts.js";
 import avionMarker from "../../assets/avion1.png";
-
-const MADRID_BOUNDS = {
-  lamin: 40.0,
-  lomin: -4.5,
-  lamax: 41.5,
-  lomax: -2.5,
-};
-
-const MADRID_CENTER = [-3.7038, 40.4168];
-
-const AIRCRAFT_SOURCE_ID = "aircraft";
-const ALERT_SOURCE_ID = "alert-aircraft";
-const SELECTED_SOURCE_ID = "selected-aircraft";
-
-const AIRCRAFT_LAYER_ID = "aircraft-symbols";
-const ALERT_LAYER_ID = "alert-aircraft-halos";
-const SELECTED_LAYER_ID = "selected-aircraft-halo";
-
-const AIRCRAFT_IMAGE_ID = "aircraft-marker-image";
-
-const MIN_SPEED_KMH = 0;
-const MAX_SPEED_KMH = 1050;
-const MIN_ALTITUDE_M = 0;
-const MAX_ALTITUDE_M = 13000;
-
-const ALERT_COLORS = [
-  "#ef4444",
-  "#a855f7",
-  "#22c55e",
-  "#06b6d4",
-  "#eab308",
-  "#ec4899",
-];
-
-const AIRCRAFT_MODELS = [
-  "A319",
-  "A320",
-  "A320NEO",
-  "A321",
-  "A321NEO",
-  "A330",
-  "A340",
-  "A350",
-  "A380",
-  "B737",
-  "B738",
-  "B38M",
-  "B747",
-  "B757",
-  "B767",
-  "B777",
-  "B787",
-  "E190",
-  "CRJ9",
-];
-
-const AIRLINES = [
-  "IBE",
-  "RYR",
-  "AEA",
-  "VLG",
-  "DLH",
-  "EZY",
-  "BAW",
-  "AFR",
-  "KLM",
-  "TAP",
-  "QTR",
-  "UAE",
-  "THY",
-];
-
-const COUNTRIES = [
-  { value: "", label: "🌍 Todos los países" },
-
-  // Europa
-  { value: "Spain", label: "🇪🇸 Spain" },
-  { value: "France", label: "🇫🇷 France" },
-  { value: "Germany", label: "🇩🇪 Germany" },
-  { value: "United Kingdom", label: "🇬🇧 United Kingdom" },
-  { value: "Italy", label: "🇮🇹 Italy" },
-  { value: "Portugal", label: "🇵🇹 Portugal" },
-  { value: "Netherlands", label: "🇳🇱 Netherlands" },
-  { value: "Belgium", label: "🇧🇪 Belgium" },
-  { value: "Ireland", label: "🇮🇪 Ireland" },
-  { value: "Switzerland", label: "🇨🇭 Switzerland" },
-  { value: "Austria", label: "🇦🇹 Austria" },
-  { value: "Poland", label: "🇵🇱 Poland" },
-  { value: "Denmark", label: "🇩🇰 Denmark" },
-  { value: "Norway", label: "🇳🇴 Norway" },
-  { value: "Sweden", label: "🇸🇪 Sweden" },
-  { value: "Finland", label: "🇫🇮 Finland" },
-  { value: "Czech Republic", label: "🇨🇿 Czech Republic" },
-  { value: "Greece", label: "🇬🇷 Greece" },
-  { value: "Hungary", label: "🇭🇺 Hungary" },
-  { value: "Romania", label: "🇷🇴 Romania" },
-  { value: "Bulgaria", label: "🇧🇬 Bulgaria" },
-  { value: "Croatia", label: "🇭🇷 Croatia" },
-  { value: "Serbia", label: "🇷🇸 Serbia" },
-  { value: "Slovakia", label: "🇸🇰 Slovakia" },
-  { value: "Slovenia", label: "🇸🇮 Slovenia" },
-  { value: "Estonia", label: "🇪🇪 Estonia" },
-  { value: "Latvia", label: "🇱🇻 Latvia" },
-  { value: "Lithuania", label: "🇱🇹 Lithuania" },
-  { value: "Luxembourg", label: "🇱🇺 Luxembourg" },
-  { value: "Iceland", label: "🇮🇸 Iceland" },
-  { value: "Malta", label: "🇲🇹 Malta" },
-  { value: "Cyprus", label: "🇨🇾 Cyprus" },
-  { value: "Ukraine", label: "🇺🇦 Ukraine" },
-
-  // América
-  { value: "United States", label: "🇺🇸 United States" },
-  { value: "Canada", label: "🇨🇦 Canada" },
-  { value: "Mexico", label: "🇲🇽 Mexico" },
-  { value: "Brazil", label: "🇧🇷 Brazil" },
-  { value: "Argentina", label: "🇦🇷 Argentina" },
-  { value: "Chile", label: "🇨🇱 Chile" },
-  { value: "Colombia", label: "🇨🇴 Colombia" },
-  { value: "Peru", label: "🇵🇪 Peru" },
-
-  // Oriente Medio / Asia
-  { value: "Turkey", label: "🇹🇷 Turkey" },
-  { value: "Qatar", label: "🇶🇦 Qatar" },
-  { value: "United Arab Emirates", label: "🇦🇪 United Arab Emirates" },
-  { value: "Saudi Arabia", label: "🇸🇦 Saudi Arabia" },
-  { value: "Israel", label: "🇮🇱 Israel" },
-  { value: "Jordan", label: "🇯🇴 Jordan" },
-  { value: "China", label: "🇨🇳 China" },
-  { value: "Japan", label: "🇯🇵 Japan" },
-  { value: "South Korea", label: "🇰🇷 South Korea" },
-  { value: "India", label: "🇮🇳 India" },
-  { value: "Singapore", label: "🇸🇬 Singapore" },
-  { value: "Thailand", label: "🇹🇭 Thailand" },
-  { value: "Malaysia", label: "🇲🇾 Malaysia" },
-  { value: "Indonesia", label: "🇮🇩 Indonesia" },
-
-  // África
-  { value: "Morocco", label: "🇲🇦 Morocco" },
-  { value: "Algeria", label: "🇩🇿 Algeria" },
-  { value: "Tunisia", label: "🇹🇳 Tunisia" },
-  { value: "Egypt", label: "🇪🇬 Egypt" },
-  { value: "South Africa", label: "🇿🇦 South Africa" },
-  { value: "Ethiopia", label: "🇪🇹 Ethiopia" },
-  { value: "Kenya", label: "🇰🇪 Kenya" },
-
-  // Oceanía
-  { value: "Australia", label: "🇦🇺 Australia" },
-  { value: "New Zealand", label: "🇳🇿 New Zealand" },
-];
-
-function isMobileViewport() {
-  return (
-    typeof window !== "undefined" &&
-    window.matchMedia("(max-width: 767px)").matches
-  );
-}
-
-function normalizeText(value) {
-  return String(value || "").trim().toUpperCase();
-}
-
-function clampNumber(value, min, max) {
-  if (value === "") return "";
-  const parsedValue = Number(value);
-
-  if (!Number.isFinite(parsedValue)) return "";
-
-  return String(Math.min(max, Math.max(min, parsedValue)));
-}
+import {
+  AIRCRAFT_IMAGE_ID,
+  AIRCRAFT_LAYER_ID,
+  AIRCRAFT_SOURCE_ID,
+  AIRCRAFT_MODELS,
+  AIRLINES,
+  ALERT_COLORS,
+  ALERT_LAYER_ID,
+  ALERT_SOURCE_ID,
+  COUNTRIES,
+  MADRID_BOUNDS,
+  MADRID_CENTER,
+  MAX_ALTITUDE_M,
+  MAX_SPEED_KMH,
+  MIN_ALTITUDE_M,
+  MIN_SPEED_KMH,
+  SELECTED_LAYER_ID,
+  SELECTED_SOURCE_ID,
+} from "./constants/mapConstants.js";
+import {
+  clampNumber,
+  formatAltitude,
+  formatCoord,
+  formatPositionSource,
+  formatSpeed,
+  formatTime,
+  formatTrack,
+  isMobileViewport,
+  normalizeText,
+} from "./utils/mapFormatters.js";
+import { buildRasterStyle } from "./utils/mapStyle.js";
 
 function matchesAlert(aircraft, alert) {
   const alertModel = normalizeText(alert.aircraft_model || alert.model);
@@ -196,20 +58,6 @@ function matchesAlert(aircraft, alert) {
   return modelOk && operatorOk;
 }
 
-function buildRasterStyle() {
-  return {
-    version: 8,
-    sources: {
-      osm: {
-        type: "raster",
-        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-        tileSize: 256,
-        attribution: "© OpenStreetMap contributors",
-      },
-    },
-    layers: [{ id: "osm", type: "raster", source: "osm" }],
-  };
-}
 
 function normalizeState(rawState) {
   if (!rawState) return null;
@@ -272,38 +120,6 @@ function normalizeState(rawState) {
     squawk: rawState[14] ?? null,
     position_source: rawState[16] ?? null,
   };
-}
-
-function formatTime(timestamp) {
-  if (!timestamp) return "—";
-  return new Date(timestamp).toLocaleTimeString();
-}
-
-function formatSpeed(ms) {
-  if (typeof ms !== "number") return "—";
-  return `${Math.round(ms * 3.6)} km/h`;
-}
-
-function formatAltitude(meters) {
-  if (typeof meters !== "number") return "—";
-  return `${Math.round(meters)} m`;
-}
-
-function formatTrack(track) {
-  if (typeof track !== "number") return "—";
-  return `${Math.round(track)}°`;
-}
-
-function formatCoord(value) {
-  if (typeof value !== "number") return "—";
-  return value.toFixed(4);
-}
-
-function formatPositionSource(value) {
-  if (value === 0) return "ADS-B";
-  if (value === 1) return "ASTERIX";
-  if (value === 2) return "MLAT";
-  return "—";
 }
 
 function buildPopupHtml(aircraft) {
