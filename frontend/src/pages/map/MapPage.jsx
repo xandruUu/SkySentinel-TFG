@@ -39,33 +39,7 @@ import {
 import SelectionCard from "./components/SelectionCard.jsx";
 import FiltersPanel from "./components/FiltersPanel.jsx";
 import MobileFiltersDrawer from "./components/MobileFiltersDrawer.jsx";
-
-function buildPopupHtml(aircraft) {
-  const model = aircraft.aircraft_model || aircraft.model || "Modelo desconocido";
-  const operator = aircraft.operator_company || "Operador desconocido";
-
-  const alertLabel = aircraft.alert_label
-    ? `<div style="margin-top:8px;display:inline-block;border-radius:999px;background:${aircraft.alert_color};color:white;padding:4px 8px;font-size:11px;font-weight:800;">Alerta: ${aircraft.alert_label}</div>`
-    : "";
-
-  return `
-    <div style="min-width:190px;font-family:Inter,Arial,sans-serif;text-align:center;padding:4px 2px;">
-      <div style="font-size:22px;font-weight:900;color:#2563eb;letter-spacing:1px;line-height:1.1;">
-        ${aircraft.callsign?.trim() || aircraft.icao24 || "—"}
-      </div>
-
-      <div style="margin-top:4px;font-size:13px;color:#64748b;font-weight:600;">
-        ${model}
-      </div>
-
-      <div style="margin-top:2px;font-size:12px;color:#64748b;font-weight:600;">
-        ${operator}
-      </div>
-
-      ${alertLabel}
-    </div>
-  `;
-}
+import { buildPopupHtml } from "./utils/aircraftPopupHtml.js";
 
 export default function MapPage() {
   const mapContainerRef = useRef(null);
