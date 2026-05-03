@@ -25,9 +25,14 @@ export function AuthProvider({ children }) {
 
     try {
       const me = await getMe(storedToken);
+
       setUser(me);
       setToken(storedToken);
-      saveSession({ accessToken: storedToken, user: me });
+
+      saveSession({
+        accessToken: storedToken,
+        user: me,
+      });
     } catch {
       clearSession();
       setUser(null);
@@ -56,9 +61,18 @@ export function AuthProvider({ children }) {
     return me;
   }, []);
 
-  const register = useCallback(async ({ email, password }) => {
-    return registerUser({ email, password });
-  }, []);
+  const register = useCallback(
+    async ({ email, password, username, firstName, lastName }) => {
+      return registerUser({
+        email,
+        password,
+        username,
+        firstName,
+        lastName,
+      });
+    },
+    []
+  );
 
   const logout = useCallback(async () => {
     const currentToken = token;
